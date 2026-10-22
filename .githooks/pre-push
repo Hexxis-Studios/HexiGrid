@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+
+npm run release:verify
+
+while read local_ref local_sha remote_ref remote_sha
+do
+  [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue
+  node scripts/release-preflight.mjs "$local_sha" "$remote_sha"
+done

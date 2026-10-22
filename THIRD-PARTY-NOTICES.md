@@ -1,0 +1,47 @@
+# Third-party notices
+
+## Local call speech detection
+
+HexiGrid reuses the separately installed [whisper.cpp](https://github.com/ggml-org/whisper.cpp) speech-segment detector (inspected 1.9.4) and [Silero VAD](https://github.com/snakers4/silero-vad) v5.1.2, both MIT licensed. The 885098-byte converted model comes from ggml-org/whisper-vad revision `9ffd54a1e1ee413ddf265af9913beaf518d1639b`, SHA-256 `29940d98d42b91fbd05ce489f3ecf7c72f0a42f027e4875919a28fb4c04ea2cf`; first preparation downloads only these pinned weights. Subsequent calls work offline. No microphone audio goes to that source. Complete license texts are retained in `docs/licenses/silero-vad-v5.1.2-MIT.txt` and `docs/licenses/whisper.cpp-1.9.4-MIT.txt`. The small integration admits or drops the complete utterance based on detected speech; admitted audio is decoded whole so the gate cannot cut out short words. A missing detector or invalid result blocks transcript delivery rather than reverting to unfiltered recognition.
+
+The owner's installed Base recognition weights use the whisper.cpp project's official `ggerganov/whisper.cpp` model source, revision `5359861c739e955e79d9a303bcbc70fb988958b1`, file `ggml-base.bin` (147951465 bytes), SHA-256 `60ed5bc3dd14eea856493d334349b405782ddcaf0028d4b5df4088345fba2efe`. The original OpenAI Whisper weights are MIT licensed; the complete license is in `docs/licenses/openai-whisper-MIT.txt`. These local runtime weights are ignored data, not committed or redistributed. No model inference or owner audio is sent to the download source.
+
+## MCP streaming parser
+
+HTTP MCP tool responses use [eventsource-parser](https://github.com/rexxars/eventsource-parser), pinned at3.1.1, under MIT. The official MCP TypeScript SDK uses this same component for its Streamable HTTP client. HexiGrid reuses its SSE framing; custom code only handles bounded UTF8 input, exact JSON-RPC response selection and owned-response cleanup. The complete upstream MIT license is retained in `docs/licenses/eventsource-parser-3.1.1-MIT.txt` and the installed npm package. Official SDK1.32.0 (MIT) is used only by ignored acceptance fixtures, not bundled as a production dependency.
+
+## Local release preparation tools
+
+Local release preparation calls the separately installed npm CLI (`npm pack` and optionally `npm ci`), inspected version 11.4.2, and the Windows OS tar implementation, inspected bsdtar/libarchive 3.8.8. npm is distributed under the Artistic License 2.0; libarchive uses BSD licenses retained in its upstream source and installed distribution. No tool binary or source is bundled by this integration. Reuse these working pack/extraction tools instead of a custom archive parser. Only archives produced from owner-reviewed local source by this invocation are accepted. Node.js v24.14.0 supplies the existing process/filesystem integration. See docs/LOCAL-RELEASES.md for data boundaries and limitations.
+
+## Codex LB integration
+
+HexiGrid's optional local pool adapter uses the separately installed [Soju06/codex-lb](https://github.com/Soju06/codex-lb) HTTP APIs. Inspected version: 1.25.0-beta.9, commit f8ffbac2099a113fba54dfd8d77774f5bca80ffa; upstream license: MIT. No upstream source, executable or account credentials are redistributed by this adapter. Reuse its account authentication, quota collection and routing rather than rebuilding them. See docs/MODEL-POOL-INTEGRATION.md for the decision and boundaries. Any future bundling must retain upstream MIT attribution and license.
+
+## Windows incoming-call notifications
+
+HexiGrid uses [node-notifier](https://github.com/mikaelbr/node-notifier) 10.0.1 (MIT) to present incoming-call toasts and action buttons through Windows. Its bundled [KDE SnoreToast](https://github.com/KDE/snoretoast) binary is version 0.7.0 (LGPL-3.0); the Start Menu registration uses that exact binary's toast-activator identity so Accept and Decline can be returned to the running local engine. Reusing the upstream toast transport avoids a custom Windows notification executable. The existing call handler still revalidates the active Link, session grants, policy, and call ID before either action changes state. Complete license texts are retained in `docs/licenses/node-notifier-10.0.1-MIT.txt` and `docs/licenses/snoretoast-0.7.0-LGPL-3.txt`. Setup, OS notification limitations and browser fallback are documented in `docs/WINDOWS-CALL-NOTIFICATIONS.md`.
+
+## HexiKeys desktop addon
+
+The built-in HexiKeys source comes from the owner's standalone password-manager task. Source hashes, origin and redistribution review standing are recorded in `integrations/hexikeys/PROVENANCE.md`. The Windows build includes a Python/Tk runtime and cryptography; it uses PyInstaller's bootloader. Pinned versions and verbatim available license texts accompany the addon under `integrations/hexikeys/notices/`. Pillow is used to generate its build icon. This initial inventory does not close the remaining transitive executable notice audit or authorize publication.
+
+HexiGrid includes a browser bundle of [WebLLM](https://github.com/mlc-ai/web-llm), version 0.2.85, under the Apache License 2.0. The bundled runtime is used only when a user chooses an on-device browser model. Model weights and WebAssembly libraries are downloaded directly by WebLLM from the model sources declared by its bundled registry and are cached by the user's browser.
+
+The complete WebLLM license text is available in the installed package at `node_modules/@mlc-ai/web-llm/LICENSE` and in the WebLLM source repository. HexiGrid's source remains under the license in [LICENSE.md](LICENSE.md).
+
+HexiGrid also includes a locally built, lazy-loaded browser bundle of [Google model-viewer](https://github.com/google/model-viewer), version 4.3.1, and Three.js 0.183.0. Both are used only when an owner adds a GLB 3D agent avatar. model-viewer is available under Apache License 2.0 and Three.js under the MIT License; their complete license files are included in their installed npm packages.
+
+The 3D avatar viewer also includes a separate lazy-loaded bundle of [Pixiv three-vrm](https://github.com/pixiv/three-vrm), pinned at 3.5.5, for self-contained VRM 0.x/1.0 avatars. It reuses the existing Three.js 0.183.0 installation (the upstream peer range is `three >=0.137`) and is available under MIT. The bundle is requested only for a VRM profile; the generic GLB path remains model-viewer. Complete MIT license texts for three-vrm and its bundled Pixiv subpackages are retained in `public/vendor/licenses/`.
+
+The avatar bundle also ships the Draco glTF decoder and Basis Universal texture transcoder from the pinned Three.js package. Both use Apache License 2.0. Compressed avatars load these local JavaScript/WebAssembly assets on demand, without a decoder CDN request. Meshopt decoding is already included in the model-viewer bundle.
+
+The local Basis worker combines that transcoder with the pinned Three.js KTX2Loader worker (MIT). Its response policy permits the vendor's generated JavaScript bindings only inside this fixed worker, with network and child workers disabled. The owner document does not permit JavaScript eval. Small public Three.js ETC1S/UASTC test textures and their MIT license/provenance are under `test/fixtures/ktx2/`.
+
+HexiGrid can install and run [Snowflake Arctic Embed S](https://huggingface.co/Snowflake/snowflake-arctic-embed-s) at the pinned revision recorded in `config/local-embedding-model.json`. The model is licensed under Apache-2.0 and is used for local retrieval embeddings. The installer verifies each artifact by SHA-256, retains the upstream model card beside the weights, and never checks for updates automatically. Inference uses the pinned `@huggingface/transformers` Node package, also licensed under Apache-2.0, with remote model loading disabled.
+# Local animated call portraits
+
+Optional portrait preparation adapts [KlingAIResearch/LivePortrait](https://github.com/KlingAIResearch/LivePortrait), MIT, at commit `9b294b3d0536135442ea73cb01e6cb3ca7029dd3`. Copyright 2024 Kuaishou Visual Generation and Interaction Center. Official MIT human checkpoints are pinned to KlingTeam/LivePortrait revision `82a4fa6735ca58432b6ce39301b4b9ee066dea47`, with six SHA-256 hashes in `integrations/liveportrait/source-manifest.json`. The runtime retains upstream LICENSE; source/weights are downloaded into ignored local data rather than redistributed in HexiGrid. OpenCV 4.10.0.84 is Apache-2.0; its bundled Haar cascade retains Intel's notice. PyTorch 2.8.0 has its upstream BSD-style notices. This integration excludes InsightFace and its research-only pretrained detectors. See `integrations/liveportrait/README.md` for setup, dependencies and amplitude-driven portrait limitations.
+# Windows desktop packaging
+
+The Windows desktop distribution uses [Electron](https://github.com/electron/electron) 44.9.1 (MIT), with its bundled Chromium notices; [Node.js](https://github.com/nodejs/node) 24.14.0 (MIT and bundled third-party notices); and a self-contained [Microsoft .NET runtime](https://github.com/dotnet/runtime) 9.0 (MIT and third-party notices; exact patch recorded in the build report) for the optional browser-call companion. Their license files are retained in the desktop distribution. [electron-builder](https://github.com/electron-userland/electron-builder) 26.15.3 (MIT) is a build tool. These do not change the HexiGrid license or grant rights to user-supplied content.

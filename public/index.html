@@ -1,0 +1,1894 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090b10" />
+    <meta
+      name="description"
+      content="A private control room for people and their AI agents."
+    />
+    <link
+      rel="alternate"
+      type="application/json"
+      href="/api/agent-interface"
+      title="HexiGrid agent interface manifest"
+    />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta
+      name="apple-mobile-web-app-status-bar-style"
+      content="black-translucent"
+    />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link
+      rel="apple-touch-icon"
+      sizes="180x180"
+      href="/apple-touch-icon-180.png"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash-1170x2532.png"
+      media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)"
+    />
+    <link
+      rel="apple-touch-startup-image"
+      href="/splash-2048x2732.png"
+      media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)"
+    />
+    <title>HexiGrid</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="/identity.css" />
+    <link rel="stylesheet" href="/brand-motion.css" />
+    <link rel="stylesheet" href="/interactions.css" />
+    <link rel="stylesheet" href="/boot-layer.css" />
+    <link rel="stylesheet" href="/boot-loader.css" />
+    <link rel="stylesheet" href="/live-communication.css" />
+    <link rel="stylesheet" href="/incoming-voice-call.css" />
+    <link rel="stylesheet" href="/hexispace-embed.css" />
+    <script src="/hexispace-embed-mode.js"></script>
+    <script src="/pwa-connection.js"></script>
+  </head>
+  <body class="booting">
+    <div
+      id="bootLoader"
+      class="boot-loader"
+      role="button"
+      tabindex="0"
+      aria-label="Open HexiGrid"
+    >
+      <canvas
+        id="bootEnvironment"
+        class="boot-environment"
+        aria-hidden="true"
+      ></canvas>
+      <canvas
+        id="bootHologram"
+        class="boot-hologram"
+        aria-hidden="true"
+      ></canvas>
+      <span class="sr-only"
+        >HexiGrid is ready. Press Enter or click to open.</span
+      >
+    </div>
+    <div class="ambient-grid" aria-hidden="true"></div>
+    <header class="mobile-header">
+      <button
+        class="mobile-menu"
+        data-action="toggle-mobile-nav"
+        aria-label="Open navigation"
+        aria-controls="workspaceNavigation"
+        aria-expanded="false"
+      >
+        <span data-icon="menu"></span>
+      </button>
+      <div class="brand-lockup">
+        <div class="brand-mark mini-core" aria-hidden="true">
+          <img src="/brand-icosahedron.svg" alt="" />
+        </div>
+        <strong>HexiGrid</strong>
+      </div>
+      <button
+        class="mobile-help"
+        data-view-target="guide"
+        aria-label="Open guide"
+      >
+        <span data-icon="help"></span>
+      </button>
+    </header>
+    <button
+      class="nav-scrim"
+      data-action="close-mobile-nav"
+      aria-label="Close navigation"
+      tabindex="-1"
+    ></button>
+    <div class="app-shell">
+      <aside class="sidebar" id="workspaceNavigation" aria-label="Workspace navigation">
+        <button class="sidebar-close" data-action="close-mobile-nav" aria-label="Close navigation"><span aria-hidden="true">×</span></button>
+        <div class="sidebar-heading">
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">
+            <img src="/brand-icosahedron.svg" alt="" />
+          </div>
+          <div>
+            <div class="brand-name">HexiGrid</div>
+          </div>
+        </div>
+        <button class="icon-button sidebar-collapse-toggle" id="sidebarCollapseToggle" type="button" data-action="toggle-sidebar-collapse" aria-controls="workspaceNavigation" aria-label="Collapse navigation" aria-expanded="true" title="Collapse navigation"><span data-icon="menu" aria-hidden="true"></span></button>
+        </div>
+        <div class="connection-pill">
+          <span class="pulse-dot"></span
+          ><span id="localStatus">Choose an AI connection</span>
+        </div>
+        <nav class="primary-nav" aria-label="Primary navigation">
+          <button class="nav-item active" data-view="overview">
+            <span class="nav-icon" data-icon="home"></span><span class="nav-label">Home</span>
+          </button>
+          <button class="nav-item" data-view="agents">
+            <span class="nav-icon" data-icon="agents"></span><span class="nav-label">Agents</span>
+            <span class="nav-count" id="agentCountNav">0</span>
+          </button>
+          <button class="nav-item" data-view="memory">
+            <span class="nav-icon" data-icon="models"></span><span class="nav-label">Memory</span>
+          </button>
+          <button class="nav-item" data-view="room">
+            <span class="nav-icon" data-icon="chat"></span><span class="nav-label">Chat</span>
+          </button>
+          <button class="nav-item" data-view="live">
+            <span class="nav-icon" data-icon="phone"></span><span class="nav-label">Calls</span>
+          </button>
+          <button class="nav-item" data-view="workspace">
+            <span class="nav-icon" data-icon="folder"></span><span class="nav-label">Workspace</span>
+          </button>
+          <button class="nav-item" data-view="settings">
+            <span class="nav-icon" data-icon="settings"></span><span class="nav-label">Settings</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="privacy-note">
+            <span class="lock-icon" data-icon="lock"></span>
+            <div>
+              <strong>Private by default</strong
+              ><small>Cloud backup is optional.</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <header class="topbar">
+          <div class="page-heading">
+            <button class="settings-back" type="button" data-view-target="settings" aria-label="Back to Settings">Settings <span aria-hidden="true">/</span></button>
+            <h1 id="viewTitle">Home</h1>
+          </div>
+          <div class="topbar-actions">
+            <div class="topbar-policy">
+            <label class="control-select"
+              ><span>MODE</span
+              ><select id="workModeSelect" aria-label="Work mode"></select
+            ></label>
+            <label class="control-select approval"
+              ><span>APPROVALS</span
+              ><select
+                id="approvalSelect"
+                aria-label="Approval profile"
+              ></select
+            ></label>
+            <label class="control-select model-select"
+              ><span>DEFAULT MODEL</span
+              ><select
+                id="globalModelSelect"
+                aria-label="Default AI model"
+              ></select
+            ></label>
+            </div>
+            <div class="topbar-tools">
+            <a
+              class="icon-button agent-view-link"
+              href="/agent-interface.html"
+              title="Open the agent workspace"
+              aria-label="Agent interface"
+              ><span data-icon="assistant"></span></a
+            ><button
+              class="icon-button"
+              data-view-target="guide"
+              title="Open how-to guide"
+              aria-label="Open how-to guide"
+            >
+              <span data-icon="help"></span></button
+            ><button
+              class="icon-button"
+              id="refreshBtn"
+              title="Refresh dashboard"
+              aria-label="Refresh dashboard"
+            >
+              <span data-icon="refresh"></span></button
+            ><button
+              class="avatar-button"
+              data-view-target="settings"
+              title="Owner settings"
+              id="ownerAvatar"
+            >
+              O
+            </button>
+            </div>
+          </div>
+        </header>
+        <div id="toast" class="toast" role="status"></div>
+        <div id="deviceNotice" class="device-notice hidden">
+          <strong>Phone mode</strong><span id="deviceNoticeText"></span
+          ><button data-action="dismiss-device-notice" aria-label="Dismiss">
+            ×
+          </button>
+        </div>
+
+        <section id="view-memory" class="view">
+          <div class="page-intro"><div><div class="eyebrow">MEMORY + LEARNING</div><h2>Agent memory</h2><p>Inspect saved context, its conditions and its history. Automatic learning can be paused; suggestions that need your decision appear below.</p></div></div>
+          <div class="panel hidden" id="memoryLearningPausedNotice" role="region" aria-labelledby="memoryLearningPausedTitle">
+            <div class="memory-review-heading"><div><div class="eyebrow">LEARNING STATUS</div><h3 id="memoryLearningPausedTitle">Automatic learning is paused</h3><p id="memoryLearningPausedReason"></p><p id="memoryLearningPausedMessage" role="status" aria-live="polite"></p></div><button class="secondary-button" id="memoryLearningResume" data-action="resume-memory-learning" type="button">Resume automatic learning</button></div>
+          </div>
+          <div class="panel" id="humanMemoryRecall">
+            <div class="memory-review-heading"><div><div class="eyebrow">PRIVATE RECALL</div><h3>Saved context for each agent</h3><p>Browse notes, dated facts and versioned skills. Search stays local, with no model call. Skill search covers loaded pages; load more when offered.</p></div><button class="secondary-button" id="memoryRecallRefresh" type="button">Refresh memory</button></div>
+            <div class="memory-recall-controls">
+              <label>Store<select id="memoryRecallStore" aria-label="Memory store"><option value="facts" selected>Agent memories</option><option value="notes">Your notes</option><option value="skills">Learned skills</option></select></label>
+              <label>Agent<select id="memoryRecallAgent" aria-label="Memory agent"></select></label>
+              <label>Search memory<input id="memoryRecallQuery" type="search" maxlength="500" placeholder="Find a fact, category or condition"></label>
+              <label>Detail<select id="memoryRecallDepth" aria-label="Recall detail"><option value="0">Current facts</option><option value="1">Facts + revision history</option><option value="2">Facts + history + evidence</option></select></label>
+              <label>Standing<select id="memoryRecallStanding" aria-label="Note standing"><option value="current">Active + conditional</option><option value="all">All standings</option><option value="active">Active</option><option value="conditional">Conditional</option><option value="superseded">Superseded</option><option value="disputed">Disputed</option><option value="rejected">Rejected</option><option value="historical">Historical</option></select></label>
+            </div>
+            <p class="panel-copy" id="memoryRecallStoreHelp">Agent memories are facts your agent has retained, including project-specific lessons. Your notes are the notes you added for it. Learned skills are reusable procedures.</p>
+            <details class="memory-recall-history"><summary>Memory check</summary><p id="memoryHealthStatus" role="status" aria-live="polite">Checks saved facts and notes without changing them.</p><button class="secondary-button" id="memoryHealthCheck" type="button">Check memories</button><button class="secondary-button hidden" id="memoryHealthMore" type="button">Check next page</button><div id="memoryHealthIssues"></div></details>
+            <details id="memoryRollbackPanel" class="memory-rollback-panel">
+              <summary>Save or restore memory</summary>
+              <p>Save a restore point before a major change. Restoring adds revisions to history; rejected or permanently deleted facts do not return.</p>
+              <div class="memory-rollback-save"><label for="memoryRollbackLabel">Checkpoint name<input id="memoryRollbackLabel" maxlength="80" placeholder="Optional, e.g. Before project cleanup"></label><button class="secondary-button" id="memoryRollbackCreate" type="button">Save checkpoint</button></div>
+              <p id="memoryRollbackStatus" role="status" aria-live="polite">Choose an agent to see saved checkpoints.</p>
+              <div id="memoryRollbackList" class="memory-recall-list"></div>
+            </details>
+            <div class="memory-recall-meta"><p id="memoryRecallStatus" role="status" aria-live="polite"></p><button class="secondary-button hidden" id="memoryRecallCreateSkill" type="button">Create skill</button><button class="text-button" id="memoryRecallProfile" type="button">Open agent profile ↗</button></div>
+            <div id="memoryRecallList" class="memory-recall-list"></div>
+            <section class="panel hidden" id="skillQuarantineReview" aria-labelledby="skillQuarantineReviewTitle">
+              <div class="memory-review-heading"><div><div class="eyebrow">OWNER REVIEW</div><h3 id="skillQuarantineReviewTitle">Pending skill drafts</h3><p>Risky agent-submitted drafts are held out of active skills. You can reject a draft with a reason; this review does not activate or apply it.</p></div></div>
+              <p id="skillQuarantineStatus" role="status" aria-live="polite"></p>
+              <div id="skillQuarantineList" class="memory-recall-list"></div>
+            </section>
+            <button class="secondary-button hidden" id="memoryRecallMore" type="button">Show more notes</button>
+          </div>
+          <div class="panel" id="humanMemoryReview">
+            <div class="memory-review-heading"><div><h3>Pending proposals <span id="memoryReviewCount"></span></h3><p>Ordinary proposals can be saved as unverified memory. Quarantined candidates stay excluded and cannot be approved.</p></div><button class="secondary-button" id="memoryReviewRefresh" type="button">Refresh</button></div>
+            <p id="memoryReviewStatus" role="status" aria-live="polite"></p>
+            <div id="memoryReviewList"></div>
+          </div>
+          <div class="panel" id="humanMemorySharing"></div>
+        </section>
+        <section id="view-overview" class="view active-view">
+          <div class="home-shortcuts" aria-labelledby="homeShortcutsTitle">
+            <div class="section-heading"><div><div class="eyebrow">QUICK START</div><h2 id="homeShortcutsTitle">What would you like to do?</h2></div></div>
+            <div class="home-shortcut-grid">
+              <button data-action="focus-composer"><span class="shortcut-icon" data-icon="chat" aria-hidden="true"></span><strong>Chat with your agents</strong><span>Open your shared conversations.</span></button>
+              <button data-action="open-connect-agent"><span class="shortcut-icon" data-icon="agents" aria-hidden="true"></span><strong>Add an agent</strong><span>Connect an account or create a local agent.</span></button>
+              <button data-action="open-computer-access"><span class="shortcut-icon" data-icon="shield" aria-hidden="true"></span><strong>Computer access</strong><span>Manage the Door, permissions and live controls.</span></button>
+              <button data-view-target="memory"><span class="shortcut-icon" data-icon="models" aria-hidden="true"></span><strong>Review memory</strong><span>Recall facts, track learning and review suggestions.</span></button>
+              <button data-view-target="workspace"><span class="shortcut-icon" data-icon="workspace" aria-hidden="true"></span><strong>Open your workspace</strong><span>Browse and work with local project files.</span></button>
+              <button data-view-target="tasks"><span class="shortcut-icon" data-icon="activity" aria-hidden="true"></span><strong>Automate a task</strong><span>Set up work an agent can repeat.</span></button>
+            </div>
+          </div>
+          <div class="command-strip">
+            <div class="command-main">
+              <div class="hero-kicker">CURRENT GOAL</div>
+              <h2 id="activeGoalTitle">No active goal</h2>
+              <p id="activeGoalMeta">
+                Save an outcome, then create a bounded task to work toward it.
+              </p>
+            </div>
+            <div class="command-actions">
+              <button class="secondary-button" data-task-from-goal>
+                Create task from goal</button
+              ><button class="secondary-button" data-view-target="access">
+                Work permissions</button
+              ><button class="primary-button" data-action="focus-composer">
+                Talk to everyone <span>↗</span>
+              </button>
+            </div>
+            <div class="signal-line" aria-hidden="true">
+              <span></span><span></span><span></span><span></span>
+            </div>
+          </div>
+          <div class="metric-grid">
+            <div class="metric-card">
+              <div class="metric-label">AGENTS</div>
+              <div class="metric-value" id="metricAgents">0</div>
+              <div class="metric-meta" id="metricAgentsMeta">
+                Ready to configure
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">CONNECTED</div>
+              <div class="metric-value" id="metricConnected">0</div>
+              <div class="metric-meta">Agent connections online</div>
+            </div>
+            <div class="metric-card">
+              <div class="metric-label">CHAT ROOMS</div>
+              <div class="metric-value" id="metricRooms">0</div>
+              <div class="metric-meta">Shared conversations</div>
+            </div>
+            <div class="metric-card accent-card">
+              <div class="metric-label">BACKUP</div>
+              <div class="metric-value compact" id="syncMetric">Off</div>
+              <div class="metric-meta">
+                <span class="green-text">Local first</span> · optional Google
+                Drive
+              </div>
+            </div>
+          </div>
+          <div class="section-heading">
+            <div>
+              <div class="eyebrow">YOUR TEAM</div>
+              <h3>Agents</h3>
+            </div>
+            <button class="ghost-button" data-view-target="agents">
+              Manage agents ↗
+            </button>
+          </div>
+          <div class="agent-grid" id="overviewAgents"></div>
+          <div class="lower-grid">
+            <div class="panel activity-panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="eyebrow">ACTIVITY</div>
+                  <h3>Recent actions</h3>
+                </div>
+                <span class="live-label"><span></span>LOCAL</span>
+              </div>
+              <div id="activityList" class="activity-list"></div>
+            </div>
+            <div class="panel posture-panel">
+              <div class="eyebrow">CURRENT SETTINGS</div>
+              <div class="posture-row">
+                <span>Work mode</span><strong id="postureMode">Converse</strong>
+              </div>
+              <div class="posture-row">
+                <span>Approval level</span
+                ><strong id="postureApproval">Approve for me</strong>
+              </div>
+              <div class="posture-row">
+                <span>Subagents</span
+                ><strong id="postureSubagents">Up to 4</strong>
+              </div>
+              <button
+                class="secondary-button full-button"
+                data-view-target="access"
+              >
+                Review permissions
+              </button>
+            </div>
+          </div>
+          <div class="panel" aria-label="HexiVerse coming soon">
+            <div class="eyebrow">COMING SOON</div>
+            <h3>HexiVerse</h3>
+            <p class="panel-copy">
+              A shared 3D world for you and your agents is in development.
+              World embodiment is coming in a later release; HexiGrid and
+              HexiSpace can be used independently.
+            </p>
+          </div>
+        </section>
+
+        <section id="view-activity" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">LIVE ACTIVITY</div>
+              <h2>What your agents are doing</h2>
+              <p>
+                Follow model replies, tool actions, file changes, approvals,
+                failures, and connection events in one place.
+              </p>
+            </div>
+            <span class="status-badge"
+              ><span class="pulse-dot"></span> TRACKING LOCALLY</span
+            >
+          </div>
+          <div class="activity-toolbar panel">
+            <div class="search-box">
+              <span data-icon="search"></span
+              ><input id="activitySearch" placeholder="Search activity or receipt ID" aria-label="Search activity" />
+            </div>
+            <select
+              id="activityFilter"
+              class="large-select"
+              aria-label="Filter activity"
+            >
+              <option value="all">Everything</option>
+              <option value="agent">Agents</option>
+              <option value="chat">Chat</option>
+              <option value="workspace">Files and tools</option>
+              <option value="policy">Permissions</option>
+              <option value="model">Models</option>
+              <option value="assistant">Assistant</option>
+            </select>
+            <select id="activityOutcome" class="large-select" aria-label="Filter outcome">
+              <option value="all">All outcomes</option>
+              <option value="attention">Needs attention</option>
+              <option value="in_progress">Pending or running</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+              <option value="recorded">Activity notes</option>
+            </select>
+          </div>
+          <div class="activity-board">
+            <div class="activity-stream panel">
+              <div class="panel-heading">
+                <div>
+                  <div class="eyebrow">TIMELINE</div>
+                  <h3>Action receipts</h3>
+                </div>
+                <span id="activityResultCount" class="filter-note"></span>
+              </div>
+              <div id="activityTimeline" class="activity-timeline"></div>
+            </div>
+            <aside class="panel activity-explainer">
+              <div class="core-mini"><span></span></div>
+              <div class="eyebrow">WHY THIS MATTERS</div>
+              <h3>No invisible agent actions</h3>
+              <p>
+                Every important action should show who did it, what was
+                attempted, which permission allowed it, and whether it worked.
+              </p>
+              <div class="receipt-key">
+                <span><i class="receipt-dot allow"></i>Completed</span
+                ><span><i class="receipt-dot ask"></i>Needs approval</span
+                ><span><i class="receipt-dot deny"></i>Blocked or failed</span>
+              </div>
+              <button
+                class="secondary-button full-button"
+                data-view-target="access"
+              >
+                Review permissions
+              </button>
+            </aside>
+          </div>
+        </section>
+
+        <section id="view-agents" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">AGENT PROFILES</div>
+              <h2>Agents</h2>
+              <p>
+                Connect an existing agent or create one here. Manage each agent's
+                model, identity, and access.
+              </p>
+            </div>
+            <button class="primary-button" data-action="open-connect-agent">
+              + Connect or create
+            </button>
+          </div>
+          <div class="filter-row">
+            <div class="search-box">
+              <span data-icon="search"></span
+              ><input
+                id="agentSearch"
+                placeholder="Search agents or accounts"
+              />
+            </div>
+            <span class="filter-note"
+              >Add as many agents as your computer can support</span
+            >
+          </div>
+          <div class="agent-list" id="agentsList"></div>
+        </section>
+
+        <section id="view-usage" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">MODEL TELEMETRY</div>
+              <h2>AI usage</h2>
+              <p>
+                See requests recorded through HexiGrid by agent and time period.
+                Counts are labeled as provider-reported or estimated. Activity
+                in an agent's other app is not included; this is not a bill.
+              </p>
+            </div>
+            <span class="status-badge">LOCAL METRICS</span>
+          </div>
+          <div class="usage-controls panel">
+            <div class="segmented" id="usagePeriods">
+              <button data-usage-period="day">24 hours</button
+              ><button data-usage-period="week" class="active">7 days</button
+              ><button data-usage-period="month">30 days</button>
+            </div>
+            <select
+              id="usageAgentFilter"
+              class="large-select"
+              aria-label="Filter usage by agent"
+            >
+              <option value="all">All agents</option>
+            </select>
+          </div>
+          <details class="panel usage-budget-editor">
+            <summary>Set a 7-day token budget</summary>
+            <p id="usageBudgetPlatformNotice" class="muted" hidden>This budget and its usage counts are saved in your encrypted browser workspace. Other devices and providers have separate usage.</p>
+            <p class="muted">Once recorded usage reaches this target, HexiGrid stops new model replies for this workspace, including browser models. A reply already running or concurrent requests can cross the target. Counts may be estimated; this is not a spending cap. Realtime provider sessions, media generation and background memory learning are separate. Provider quotas and purchased credits stay separate.</p>
+            <form id="usageBudgetForm">
+              <label for="usageBudgetInput">Tokens per 7 days</label>
+              <input id="usageBudgetInput" type="number" min="1" max="1000000000" step="1" placeholder="No budget configured" />
+              <div class="form-actions">
+                <button type="submit" class="primary-button">Save budget</button>
+                <button type="submit" name="budgetAction" value="clear" class="secondary-button" formnovalidate>Disable budget</button>
+                <button type="button" id="usageBudgetReload" class="ghost-button">Reload budget</button>
+              </div>
+              <p id="usageBudgetStatus" class="muted" role="status"></p>
+            </form>
+          </details>
+          <div class="usage-metrics">
+            <article class="metric-card"><div class="metric-label">7-DAY TOKEN BUDGET</div><div class="metric-meta" id="usageBudgetFeedback">No 7-day token budget configured</div></article>
+            <article class="metric-card">
+              <div class="metric-label">TOTAL TOKENS</div>
+              <div class="metric-value compact" id="usageTotal">0</div>
+              <div class="metric-meta">
+                Estimated unless provider reports exact counts
+              </div>
+            </article>
+            <article class="metric-card">
+              <div class="metric-label">INPUT</div>
+              <div class="metric-value compact" id="usageInput">0</div>
+              <div class="metric-meta">Prompts and conversation context</div>
+            </article>
+            <article class="metric-card">
+              <div class="metric-label">OUTPUT</div>
+              <div class="metric-value compact" id="usageOutput">0</div>
+              <div class="metric-meta">Agent replies</div>
+            </article>
+          </div>
+          <div class="panel usage-chart-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">USAGE OVER TIME</div>
+                <h3 id="usageChartTitle">Last 7 days</h3>
+              </div>
+              <div id="usageLegend" class="usage-legend"></div>
+            </div>
+            <div
+              id="usageChart"
+              class="usage-chart"
+              role="group"
+              aria-label="Token usage by rolling interval"
+              aria-describedby="usageChartDetail"
+            ></div>
+            <p id="usageChartDetail" class="usage-chart-detail" role="status">Tap or focus a bar to see its exact token count and local interval.</p>
+          </div>
+          <div class="panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">BY AGENT</div>
+                <h3>Who used the models</h3>
+              </div>
+            </div>
+            <div id="usageAgentBreakdown" class="usage-breakdown"></div>
+          </div>
+        </section>
+
+        <section id="view-room" class="view">
+          <div class="page-intro room-intro">
+            <div>
+              <div class="eyebrow">GROUP CHAT</div>
+              <h2>Chat rooms</h2>
+              <p>
+                Talk with one agent or many. Local models respond here; paired
+                agents receive the recent conversation through their Link.
+              </p>
+            </div>
+            <button class="secondary-button" data-action="new-room">
+              + New room
+            </button>
+          </div>
+          <div class="room-layout">
+            <div class="room-sidebar">
+              <div class="room-sidebar-head">
+                <span>ROOMS</span
+                ><button class="mini-button" data-action="new-room" aria-label="Create room">+</button>
+              </div>
+              <div id="roomList"></div>
+              <details id="archivedRooms"><summary>Archived rooms <span id="archivedRoomCount">0</span></summary><div id="archivedRoomList"></div></details>
+            </div>
+            <div class="chat-panel">
+              <div class="chat-head">
+                <div>
+                  <h3 id="roomTitle">Command room</h3>
+                  <span id="roomDescription"
+                    >Local multi-agent conversation</span
+                  >
+                </div>
+                <button class="ghost-button" data-action="rename-room">
+                  Edit room
+                </button>
+                <button class="ghost-button" data-action="archive-room">Archive room</button>
+              </div>
+              <details class="participant-row" id="roomResponders">
+                <summary><span>Responders</span><strong id="roomResponderSummary">Choose agents</strong></summary>
+                <p class="responder-help">Local agents use their selected model. Paired agents receive a room request through their existing Link and reply from their own app. Queued requests can be checked or cancelled below.</p>
+                <div id="participantChips" class="participant-chips"></div>
+              </details>
+              <div id="messageList" class="message-list"></div>
+              <form id="chatForm" class="composer">
+                <textarea
+                  id="chatInput"
+                  rows="3"
+                  aria-label="Message selected responders"
+                  placeholder="Message the selected agents…"
+                ></textarea>
+                <div class="composer-foot">
+                  <span id="composerHint">Select at least one agent.</span
+                  ><button class="secondary-button" data-action="stop-chat" type="button" id="chatStop" hidden>Stop reply</button><button class="primary-button" type="submit">
+                    Send message <span>↗</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-communication" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">GLOBAL COMMUNICATION STYLE</div>
+              <h2>How agents talk</h2>
+              <p>
+                This adds communication guidance without replacing the
+                connected agent’s identity, personality, instructions, or rules.
+              </p>
+            </div>
+            <span class="safe-badge">EASY TO CHANGE</span>
+          </div>
+          <div class="communication-layout">
+            <div class="panel communication-editor">
+              <label class="toggle-row"
+                ><span
+                  ><strong>Use this style guide</strong
+                  ><small>Each agent can opt out in its profile.</small></span
+                ><input id="communicationEnabled" type="checkbox" /></label
+              ><label class="editor-label"
+                >General guidance<textarea
+                  id="communicationInstructions"
+                  rows="11"
+                  placeholder="Describe how you want agents to speak…"
+                ></textarea>
+              </label>
+              <div class="examples-head">
+                <div>
+                  <h3>Examples</h3>
+                  <p>
+                    Examples teach the feel you want. They are not scripted
+                    replies.
+                  </p>
+                </div>
+                <button
+                  class="secondary-button"
+                  data-action="add-communication-example"
+                >
+                  + Add example
+                </button>
+              </div>
+              <div id="communicationExamples" class="example-list"></div>
+              <div class="form-actions">
+                <button class="ghost-button" data-action="reset-communication">
+                  Restore defaults</button
+                ><button
+                  class="primary-button"
+                  data-action="save-communication"
+                  disabled
+                >
+                  Save communication style
+                </button>
+              </div>
+            </div>
+            <div class="panel preview-card">
+              <div class="eyebrow">TRY IT</div>
+              <h3>Preview the tone</h3>
+              <p class="panel-copy">
+                Test the draft before saving it. The preview uses your currently
+                selected model.
+              </p>
+              <label class="editor-label"
+                >Example message<textarea
+                  id="communicationPreviewInput"
+                  rows="5"
+                >
+Are you able to help me connect this account?</textarea
+                ></label
+              ><button
+                class="secondary-button full-button"
+                data-action="preview-communication"
+              >
+                Generate preview
+              </button>
+              <div id="communicationPreviewOutput" class="preview-output">
+                Your preview will appear here.
+              </div>
+              <div class="precedence-note">
+                <strong>What wins if rules conflict?</strong>
+                <p>
+                  Safety and permissions → connected agent’s identity and rules → agent
+                  instructions → this communication style.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-models" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">AI MODEL ROUTING</div>
+              <h2>AI models</h2>
+              <p>
+                  Choose models for local responders from your connected services.
+                  Paired agents use the models in their own apps.
+              </p>
+            </div>
+            <button class="secondary-button" data-action="refresh-models">
+              Refresh list
+            </button>
+          </div>
+          <div class="panel default-model-panel">
+            <div>
+              <div class="eyebrow">DEFAULT MODEL</div>
+              <h3>Used when an agent has no special choice</h3>
+            </div>
+            <div class="model-controls">
+              <label
+                >Models to allow<select id="modelPolicySelect">
+                  <option value="free-only">Only models marked no-cost</option>
+                  <option value="all-models">All connected models</option>
+                </select></label
+              ><label
+                >Default model<select
+                  id="defaultModelSelect"
+                  class="large-select"
+                ></select
+              ></label>
+            </div>
+          </div>
+          <div class="section-heading compact-heading">
+            <div>
+              <div class="eyebrow">LIVE CATALOG</div>
+              <h3>Models reported by your connections</h3>
+            </div>
+          </div>
+          <div id="modelCatalog" class="model-grid"></div>
+          <div class="panel agent-model-panel">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">PER-AGENT CHOICE</div>
+                <h3>Assign models</h3>
+              </div>
+            </div>
+            <div id="agentModelList" class="agent-model-list"></div>
+          </div>
+        </section>
+
+        <section id="view-workspace" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">PRIVATE SANDBOX</div>
+              <h2>Workspace</h2>
+              <p>
+                A local file editor and permission-aware terminal for agents.
+                Everything stays inside HexiGrid’s workspace folder.
+              </p>
+            </div>
+            <span class="status-badge">LOCAL ONLY</span>
+          </div>
+          <div class="workspace-layout">
+            <aside class="panel file-panel">
+              <div class="file-panel-head">
+                <div>
+                  <div class="eyebrow">FILES</div>
+                  <strong id="workspaceFolder">/</strong>
+                </div>
+                <button
+                  class="mini-button"
+                  data-action="workspace-up"
+                  title="Parent folder"
+                  aria-label="Parent folder"
+                >
+                  ↑
+                </button>
+              </div>
+              <div id="workspaceFiles" class="workspace-files"></div>
+            </aside>
+            <div class="panel editor-panel">
+              <div class="editor-toolbar">
+                <label
+                  >File path<input
+                    id="workspacePathInput"
+                    value="/Welcome.md" /></label
+                ><button class="secondary-button" data-action="reload-workspace-file">Reload file</button><button
+                  class="primary-button"
+                  data-action="save-workspace-file"
+                  disabled
+                >
+                  Save
+                </button>
+              </div>
+              <p id="workspaceDraftStatus" class="workspace-draft-status" role="status" aria-live="polite">Open a file or enter a new path</p>
+              <textarea
+                id="workspaceEditor"
+                spellcheck="false"
+                aria-label="File editor"
+              ></textarea>
+            </div>
+            <div class="panel terminal-panel">
+              <div class="terminal-head">
+                <div>
+                  <div class="eyebrow">SAFE TERMINAL</div>
+                  <h3>Workspace commands</h3>
+                </div>
+                <span id="terminalMode">Uses active permissions</span>
+              </div>
+              <pre id="terminalOutput">
+HexiGrid safe terminal. Type help to see available commands.</pre
+              >
+              <form id="terminalForm" class="terminal-form">
+                <span>›</span
+                ><input
+                  id="terminalInput"
+                  aria-label="Workspace command"
+                  autocomplete="off"
+                  placeholder="help"
+                /><button class="secondary-button" type="submit">Run</button>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-assistant" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">PLAIN-LANGUAGE ASSISTANT</div>
+              <h2>Ask HexiGrid</h2>
+              <p>
+                Describe a workflow, agent, rule, or setup question without
+                needing to write code.
+              </p>
+            </div>
+            <span class="safe-badge">LOCAL MODEL</span>
+          </div>
+          <div class="assistant-layout">
+            <div class="panel assistant-card">
+              <div class="assistant-orb" data-icon="assistant"></div>
+              <div class="eyebrow">HEXIGRID ASSISTANT</div>
+              <h3>What do you want to set up?</h3>
+              <p>
+                This assistant can reason over your local roster. Configuration
+                actions remain subject to the active mode and approval level.
+              </p>
+              <div id="assistantMessages" class="assistant-messages">
+                <div class="assistant-message assistant-welcome">
+                  Try: “Help me design a research team with one coordinator and
+                  three focused subagents.”
+                </div>
+              </div>
+              <form id="assistantForm" class="assistant-form">
+                <textarea
+                  id="assistantInput"
+                  rows="4"
+                  placeholder="Describe what you want in normal language…"
+                ></textarea
+                ><button class="primary-button" type="submit">
+                  Ask <span>↗</span>
+                </button>
+              </form>
+            </div>
+            <div class="panel integration-card">
+              <div class="eyebrow">CONNECTED CAPABILITIES</div>
+              <h3>One home for many kinds of AI</h3>
+              <div class="integration-item">
+                <span class="integration-number">01</span>
+                <div>
+                  <strong>Agent connections</strong>
+                  <p>Pair supported agents or add local agents. iLands Runner is one optional connector.</p>
+                </div>
+              </div>
+              <div class="integration-item">
+                <span class="integration-number">02</span>
+                <div>
+                  <strong>AI models</strong>
+                  <p>
+                    OpenCode, local servers, Hugging Face, OpenAI, Anthropic,
+                    Gemini, and compatible APIs.
+                  </p>
+                </div>
+              </div>
+              <div class="integration-item">
+                <span class="integration-number">03</span>
+                <div>
+                  <strong>Skills and tools</strong>
+                  <p>
+                    Scoped plugins, MCP servers, image tools, apps, devices, and
+                    robot bridges.
+                  </p>
+                </div>
+              </div>
+              <div class="integration-item">
+                <span class="integration-number">04</span>
+                <div>
+                  <strong>Clear control</strong>
+                  <p>
+                    Every action follows the selected mode, permission, scope,
+                    and approval level.
+                  </p>
+                </div>
+              </div>
+              <div class="callout">
+                This Codex task remains your build collaborator. The in-app
+                assistant is the local operator users can reach from HexiGrid.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-access" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">PERMISSIONS</div>
+              <h2>Modes and approvals</h2>
+              <p>
+                Mode decides what kind of work is allowed. Approval level
+                decides when HexiGrid pauses to ask.
+              </p>
+            </div>
+            <span class="status-badge">ENFORCED LOCALLY</span>
+          </div>
+          <div class="panel"><h3>Codex deliveries</h3><div id="ownerCodexDeliveries"></div></div>
+          <div class="policy-summary panel">
+            <div>
+              <div class="eyebrow">EFFECTIVE RULE</div>
+              <h3>The narrowest permission always wins</h3>
+            </div>
+            <p>
+              Full access removes approval prompts only inside permissions
+              already granted. It never creates new access.
+            </p>
+          </div>
+          <div class="section-heading compact-heading">
+            <div>
+              <div class="eyebrow">WORK MODE</div>
+              <h3>Choose what kind of work is happening</h3>
+            </div>
+          </div>
+          <div class="mode-grid" id="modeCards"></div>
+          <div class="access-grid">
+            <div class="panel">
+              <div class="eyebrow">APPROVAL LEVEL</div>
+              <h3>When should HexiGrid ask?</h3>
+              <div id="approvalCards" class="approval-cards"></div>
+            </div>
+            <div class="panel">
+              <div class="eyebrow">CURRENT GOAL</div>
+              <h3>Name the outcome</h3>
+              <p class="panel-copy">
+                Your shared goal provides context. Create a task to run a bounded step; saving the goal does not start work.
+              </p>
+              <form id="goalForm" class="stack-form">
+                <label
+                  >Goal<input
+                    id="goalInput"
+                    maxlength="240"
+                    placeholder="e.g. Connect and test my agents"
+                /></label>
+                <div class="form-actions">
+                  <button
+                    type="button"
+                    class="ghost-button"
+                    data-action="clear-goal"
+                  >
+                    Clear</button
+                  ><button type="submit" class="primary-button">
+                    Save goal
+                  </button><button type="button" class="secondary-button" data-task-from-goal>
+                    Create task from goal
+                  </button>
+                </div>
+              </form>
+            </div>
+            <div class="panel">
+              <div class="eyebrow">SUBAGENTS</div>
+              <h3>Parallel work</h3>
+              <p class="panel-copy">
+                Subagents inherit their parent’s permission ceiling and
+                connection scopes.
+              </p>
+            </div>
+            <div class="panel">
+              <div class="eyebrow">OWNER CONTROLS</div>
+              <h3>Always available to you</h3>
+              <div class="hard-stop-list">
+                <span>Pause or stop tasks</span
+                ><span>Stop an iLands Runner</span
+                ><span>Disable plugins and MCP tools</span
+                ><span>Revoke signed-in sessions</span
+                ><span>Review action receipts</span>
+              </div>
+              <p class="panel-copy">
+                These controls stay outside the model so an agent cannot remove
+                them.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-guide" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">HOW-TO GUIDE</div>
+              <h2>Learn HexiGrid step by step</h2>
+              <p>
+                Start with the basics or jump to the exact feature you need.
+                Every guide uses plain language.
+              </p>
+            </div>
+            <button class="primary-button" data-action="restart-onboarding">
+              Restart welcome tour
+            </button>
+          </div>
+          <div class="guide-progress panel">
+            <div class="guide-progress-copy">
+              <div class="eyebrow">YOUR SETUP</div>
+              <h3 id="guideProgressTitle">Getting started</h3>
+              <p id="guideProgressText">
+                Complete the basics to begin chatting with an agent.
+              </p>
+            </div>
+            <div class="progress-ring" id="guideProgressRing">
+              <strong>0%</strong><span>complete</span>
+            </div>
+          </div>
+          <div class="guide-map" aria-label="How HexiGrid works">
+            <div class="map-node owner-node">
+              <span>YOU</span><strong>Control room</strong>
+            </div>
+            <i></i>
+            <div class="map-hub">
+              <div class="core-mini large"><span></span></div>
+              <strong>HexiGrid</strong
+              ><small>permissions + memory + activity</small>
+            </div>
+            <i></i>
+            <div class="map-stack">
+              <span>AI models</span><span>Agent accounts</span
+              ><span>Skills & apps</span><span>Devices</span>
+            </div>
+          </div>
+          <div class="section-heading compact-heading">
+            <div>
+              <div class="eyebrow">GUIDES</div>
+              <h3>Choose a topic</h3>
+            </div>
+          </div>
+          <label class="guide-search" for="guideSearch">Find a guide<input id="guideSearch" type="search" maxlength="200" placeholder="Calls, memory, vault, backups…" aria-controls="guideGrid" /></label>
+          <p id="guideSearchStatus" class="panel-copy" role="status"></p>
+          <div class="guide-grid" id="guideGrid"></div>
+        </section>
+
+        <section id="view-settings" class="view">
+          <div class="page-intro">
+            <div>
+              <h2>Settings</h2>
+              <p>
+                Appearance and device preferences stay on this device unless you
+                include them in an encrypted backup.
+              </p>
+            </div>
+            <span class="status-badge">DEVICE SETTINGS</span>
+          </div>
+          <div class="settings-grid">
+            <div class="panel settings-profile-panel">
+              <div>
+                <div class="eyebrow">YOUR PROFILE</div>
+                <h3>How you appear locally</h3>
+              </div>
+              <div class="settings-profile-fields">
+                <label class="editor-label"
+                  >Display name<input
+                    id="ownerName"
+                    placeholder="Your name" /></label
+                ><button
+                  class="secondary-button"
+                  data-action="save-owner"
+                >
+                  Save profile
+                </button>
+              </div>
+            </div>
+            <div class="panel theme-panel">
+              <div class="eyebrow">APPEARANCE</div>
+              <h3>Choose a theme</h3>
+              <p class="panel-copy">
+                All themes use the same layout and keep text readable.
+              </p>
+              <div class="theme-grid">
+                <button
+                  class="theme-card"
+                  data-theme-choice="system-dark"
+                  aria-label="Use Dark theme"
+                >
+                  <span class="theme-swatch swatch-system-dark"></span
+                  ><strong>Dark</strong></button
+                ><button
+                  class="theme-card"
+                  data-theme-choice="system-light"
+                  aria-label="Use Light theme"
+                >
+                  <span class="theme-swatch swatch-system-light"></span
+                  ><strong>Light</strong></button
+                ><button
+                  class="theme-card"
+                  data-theme-choice="aurora-dark"
+                  aria-label="Use Prism theme"
+                >
+                  <span class="theme-swatch swatch-aurora-dark"></span
+                  ><strong>Prism</strong></button
+                ><button
+                  class="theme-card"
+                  data-theme-choice="aurora-light"
+                  aria-label="Use Parchment theme"
+                >
+                  <span class="theme-swatch swatch-aurora-light"></span
+                  ><strong>Parchment</strong>
+                </button>
+              </div>
+            </div>
+            <div class="panel">
+              <div class="eyebrow">FEEL</div>
+              <h3>Motion and sound</h3>
+              <label class="toggle-row"
+                ><span
+                  ><strong>Interface motion</strong
+                  ><small
+                    >Show ambient movement and transitions.</small
+                  ></span
+                ><input id="motionEnabled" type="checkbox" checked /></label
+              ><label class="toggle-row"
+                ><span
+                  ><strong>Button sounds</strong
+                  ><small
+                    >Play a soft click when you press a button.</small
+                  ></span
+                ><input
+                  id="buttonSoundsEnabled"
+                  type="checkbox"
+                  checked /></label
+              ><label class="toggle-row"
+                ><span
+                  ><strong>Compact information</strong
+                  ><small>Show more content on large screens.</small></span
+                ><input id="compactMode" type="checkbox"
+              /></label>
+            </div>
+            <div class="panel">
+              <div class="eyebrow">INSTALL</div>
+              <h3>Use HexiGrid like an app</h3>
+              <p class="panel-copy">
+                Install the PWA for a home-screen icon, standalone window, and
+                faster opening.
+              </p>
+              <button
+                class="primary-button full-button"
+                data-action="install-pwa"
+                id="installPwaBtn"
+              >
+                Install on this device
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-setup" class="view">
+          <div class="page-intro">
+            <div>
+              <div class="eyebrow">AGENTS, MODELS &amp; DEVICES</div>
+              <h2>Connect your agents, models, and devices</h2>
+              <p>
+                Pair an existing agent such as Muse, Codex, or Claude with
+                Agent Link. Model providers connect separately; iLands is one
+                optional provider-specific connection.
+              </p>
+            </div>
+            <div id="bridgeBadge" class="status-badge">
+              Checking local bridge…
+            </div>
+          </div>
+          <button class="primary-button" data-action="open-agent-link-invite">Pair an existing agent</button>
+          <div class="connection-grid">
+            <div class="panel connection-card">
+              <div class="connector-head">
+                <span class="connector-glyph">iL</span>
+                <div>
+                  <div class="eyebrow">OPTIONAL AGENT CONNECTOR</div>
+                  <h3>iLands connection</h3>
+                </div>
+              </div>
+              <p class="panel-copy">For agents connected through iLands. Use Pair an existing agent for Muse, Codex, Claude, or another agent that supports HexiGrid Link.</p>
+              <div class="integration-help-links">
+                <button
+                  class="text-button"
+                  data-action="open-guide-topic"
+                  data-guide="ilands"
+                >
+                  Simple steps</button
+                ><a
+                  href="https://ilands.ai/byoa"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Official setup</a
+                >
+              </div>
+              <div id="setupSteps" class="setup-steps"></div>
+              <div class="warning-callout">
+                <strong>Keep every account separate</strong>
+                <p>
+                  Each linked agent receives its own Runner home, workspace,
+                  status, and disconnect control.
+                </p>
+              </div>
+              <div class="setup-links">
+                <a
+                  href="https://ilands.ai/agent.md"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Agent guide ↗</a
+                ><a
+                  href="https://ilands.ai/faq"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >FAQ ↗</a
+                >
+              </div>
+            </div>
+            <div class="panel connection-card">
+              <div class="connector-head">
+                <span class="connector-glyph open" data-icon="models"></span>
+                <div>
+                  <div class="eyebrow">AI MODELS</div>
+                  <h3>Your chosen connections</h3>
+                </div>
+              </div>
+              <div id="bridgeDetails" class="bridge-details"></div>
+              <div class="model-policy">
+                <span class="policy-check">✓</span>
+                <div>
+                  <strong>Nothing connects itself</strong>
+                  <p>Only services and tools you choose can provide models.</p>
+                </div>
+              </div>
+              <button
+                class="secondary-button full-button"
+                data-view-target="providers"
+              >
+                Open AI connections
+              </button>
+            </div>
+            <div class="panel connection-card">
+              <div class="connector-head">
+                <span class="connector-glyph google">G</span>
+                <div>
+                  <div class="eyebrow">OPTIONAL BACKUP</div>
+                  <h3>Google Drive</h3>
+                </div>
+                <span id="googleSummaryBadge" class="status-badge warn">OPTIONAL</span>
+              </div>
+              <p id="googleSummaryCopy" class="panel-copy">
+                Sign in with Google to keep an encrypted backup in your own
+                hidden app-data folder. HexiGrid never uploads readable chats,
+                memories, files, or credentials.
+              </p>
+              <div class="privacy-stack">
+                <div>
+                  <span>Readable data uploaded</span><strong>Never</strong>
+                </div>
+                <div><span>Storage owner</span><strong>You</strong></div>
+                <div>
+                  <span>Drive location</span><strong>Hidden app data</strong>
+                </div>
+                <div>
+                  <span>Encryption key</span><strong>Your phrase</strong>
+                </div>
+              </div>
+              <div class="integration-help-links">
+                <button
+                  class="text-button"
+                  data-action="open-guide-topic"
+                  data-guide="backup"
+                >
+                  Simple steps</button
+                ><a
+                  href="https://firebase.google.com/docs/auth/web/google-signin"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Official Google guide</a
+                >
+              </div>
+              <button
+                id="googleSummaryButton"
+                class="secondary-button full-button"
+                data-action="configure-google"
+              >
+                Set up Google backup
+              </button>
+            </div>
+            <div class="panel connection-card network-card">
+              <div class="connector-head">
+                <span class="connector-glyph network" data-icon="phone"></span>
+                <div>
+                  <div class="eyebrow">PHONE + TABLET</div>
+                  <h3>Open on another device</h3>
+                </div>
+                <span id="networkBadge" class="status-badge warn"
+                  >LOCAL ONLY</span
+                >
+              </div>
+              <p class="panel-copy" id="networkDescription">
+                Network access is off. Turn it on only while using a private
+                Wi-Fi network you trust.
+              </p>
+              <div id="networkDetails" class="network-details"></div>
+              <button
+                class="secondary-button full-button"
+                data-action="copy-mobile-address"
+                id="copyMobileAddress"
+              >
+                Copy phone address
+              </button>
+              <button
+                class="secondary-button full-button"
+                data-action="toggle-remote-link"
+                id="remoteLinkButton"
+              >
+                Open temporary remote link
+              </button>
+            </div>
+            <div class="panel connection-card">
+              <div class="connector-head">
+                <span class="connector-glyph" data-icon="tools"></span>
+                <div>
+                  <div class="eyebrow">TOOLS + FRAMEWORKS</div>
+                  <h3>Add another service</h3>
+                </div>
+              </div>
+              <p class="panel-copy">
+                Use a scoped plugin or MCP server for agent frameworks,
+                browsers, apps, devices, robots, finance tools, and custom APIs.
+              </p>
+              <div class="integration-help-links">
+                <button
+                  class="text-button"
+                  data-action="open-guide-topic"
+                  data-guide="tools"
+                >
+                  Simple steps</button
+                ><a
+                  href="https://modelcontextprotocol.io/docs/getting-started/intro"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >Official MCP guide</a
+                >
+              </div>
+              <button
+                class="secondary-button full-button"
+                data-view-target="integrations"
+              >
+                Open Settings → Connections ↗
+              </button>
+            </div>
+          </div>
+          <div class="panel setup-roster">
+            <div class="panel-heading">
+              <div>
+                <div class="eyebrow">SEPARATE ACCOUNTS</div>
+                <h3>iLands Runner profiles</h3>
+              </div>
+              <button class="ghost-button" data-view-target="integrations">
+                Manage connections ↗
+              </button>
+            </div>
+            <div id="setupRoster" class="setup-roster-list"></div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="connectModal" class="modal-backdrop hidden">
+      <div
+        class="modal connect-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="connectTitle"
+      >
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">ADD AN AGENT</div>
+            <h2 id="connectTitle">How do you want to connect?</h2>
+          </div>
+          <button class="close-button" data-action="close-connect-modal">
+            ×
+          </button>
+        </div>
+        <div class="provider-grid">
+          <button
+            class="provider-card featured"
+            data-action="open-agent-link-invite"
+          >
+            <span class="provider-orb">↔</span>
+            <div>
+              <strong>Pair an existing agent</strong>
+              <p>
+                Create a HexiGrid Link invitation for an agent that supports
+                the companion connection.
+              </p>
+              <small>The agent stays in its current app or provider</small>
+            </div></button
+          ><button
+            class="provider-card"
+            data-action="choose-agent-source"
+            data-source="local"
+          >
+            <span class="provider-orb local">AI</span>
+            <div>
+              <strong>Create local agent</strong>
+              <p>
+                Build an independent personality using any model you connected.
+              </p>
+              <small>No outside agent account needed</small>
+            </div></button
+          ><button class="provider-card" data-action="choose-agent-source" data-source="ilands">
+            <span class="provider-orb">iL</span>
+            <div>
+              <strong>Connect through iLands</strong>
+              <p>Use iLands' supported connection flow. For other agents, choose Pair an existing agent.</p>
+              <small>iLands-specific connection</small>
+            </div>
+          </button>
+        </div>
+        <p class="integration-help-links">Looking for another setup? <button class="text-button" data-action="future-provider" type="button">Browse integrations and tools</button></p>
+      </div>
+    </div>
+
+    <div id="agentModal" class="modal-backdrop hidden">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modalTitle"
+      >
+        <div class="modal-head">
+          <div>
+            <div class="eyebrow">AGENT PROFILE</div>
+            <h2 id="modalTitle">Add an agent</h2>
+          </div>
+          <button class="close-button" aria-label="Close agent profile" data-action="close-modal">×</button>
+        </div>
+        <form id="agentForm">
+          <input type="hidden" id="agentId" />
+          <div class="agent-profile-body">
+            <section class="agent-profile-primary" aria-label="Identity and behavior">
+              <div class="agent-profile-heading"><span class="eyebrow">IDENTITY</span><span id="agentConnectionSummary" class="agent-profile-source"></span></div>
+              <div class="form-grid two-col"><label for="agentName">Display name<input id="agentName" required placeholder="e.g. Atlas" /></label><label for="accountLabel">Account label<input id="accountLabel" placeholder="e.g. personal account" /></label></div>
+              <div id="agentLocalModelField"><label for="agentModel">Local reply model<select id="agentModel"></select></label><p class="microcopy">Used when this local profile answers in HexiGrid.</p></div>
+              <div id="agentProviderModelNote" class="agent-provider-model-note" hidden><strong>Model managed in the agent’s app</strong><p>This profile receives replies through its Agent Link. Choose its model in the app where the agent runs.</p></div>
+              <label for="personality">Personality<textarea id="personality" rows="3" placeholder="Identity, voice, temperament, values, strengths&hellip;"></textarea></label>
+              <label class="checkbox-control agent-profile-communication"><input id="agentUseGlobalCommunication" type="checkbox" /> Use the global &ldquo;How agents talk&rdquo; guide</label>
+            </section>
+            <details id="agentInstructionsDisclosure" class="agent-profile-section"><summary>Instructions &amp; boundaries</summary><div class="agent-profile-section-body"><label for="instructions">Standing instructions<textarea id="instructions" rows="4" placeholder="What should this agent consistently do?"></textarea></label><label for="rules">Rules and boundaries<textarea id="rules" rows="4" placeholder="What is prohibited or requires confirmation?"></textarea></label></div></details>
+            <details id="agentAppearanceDisclosure" class="agent-profile-section"><summary>Picture &amp; 3D avatar</summary><div class="agent-profile-section-body">          <div class="agent-photo-editor">
+            <div id="agentPhotoPreview" class="agent-photo-preview">A</div>
+            <div>
+              <strong>Profile picture</strong>
+              <p>
+                Choose a clear square image. Small animated GIF or WebP pictures stay animated; other pictures are resized and saved locally.
+              </p>
+              <label class="secondary-button file-button"
+                >Choose picture<input
+                  id="agentPhotoInput"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp,image/gif" /></label
+              ><button
+                type="button"
+                class="ghost-button"
+                data-action="remove-agent-photo"
+              >
+                Remove
+              </button>
+              <label class="microcopy"><input id="agentAnimatePortrait" type="checkbox" /> Animate this picture in video calls</label>
+              <button type="button" class="ghost-button" data-action="animate-agent-picture">Animate picture</button>
+              <p id="agentPortraitStatus" role="status">One clear face works best. Prepared on this computer; no paid service.</p>
+            </div>
+          </div>
+          <div class="agent-photo-editor agent-model-editor">
+            <div id="agentModelPreview" class="agent-model-preview"><span>3D</span></div>
+            <div>
+              <strong>Optional 3D avatar</strong>
+              <p>Choose one self-contained GLB or VRM model up to 64 MB. It stays in your local data folder and loads only when shown.</p>
+              <label class="secondary-button file-button">Choose 3D model<input id="agentModelInput" type="file" accept="model/gltf-binary,.glb,.vrm" /></label>
+              <button type="button" class="ghost-button" data-action="remove-agent-model">Remove 3D avatar</button>
+            </div>
+          </div>
+</div></details>
+            <details id="agentConnectionDisclosure" class="agent-profile-section"><summary>Connection details</summary><div class="agent-profile-section-body">
+              <p class="microcopy">Existing paired Links keep their connection. Runner fields apply only to iLands Runner profiles.</p>
+              <label for="transport">Profile source<select id="transport"><option value="ilands-link" disabled>Paired Agent Link</option><option value="local-opencode">Independent local profile</option><option value="ilands-runner">iLands Runner</option></select></label>
+              <div class="form-grid two-col"><label for="harness">iLands Runner harness<select id="harness"><option value="codex">Codex</option><option value="claude-code">Claude Code</option></select></label><label for="ilandsAgentId">iLands agent ID<input id="ilandsAgentId" placeholder="Paste after iLands confirms the connection" /></label></div>
+              <label for="runnerHome">Runner home<input id="runnerHome" placeholder="C:&#92;private&#92;runner-agent-1" /></label>
+              <label for="externalEmail">Agent email<input id="externalEmail" type="email" maxlength="320" autocomplete="off" placeholder="Their working agent email address" /></label>
+              <label for="workspacePath">Workspace path<input id="workspacePath" placeholder="C:&#92;private&#92;HexiGrid&#92;agents&#92;atlas" /></label>
+            </div></details>
+            <details id="agentMemoryDisclosure" class="agent-profile-section"><summary>Memory &amp; learning</summary><div id="agentMemoryDisclosureBody" class="agent-profile-section-body"><label class="checkbox-control agent-profile-communication"><input id="agentUseMemories" type="checkbox" checked /> Use memories in responses</label><p class="help">Builds a small, bounded context locally from one existing project/topic scope when its selection is unambiguous. It can include identity preferences and relevant current facts. This controls HexiGrid replies; responses generated in an external provider’s app are controlled there.</p><label class="checkbox-control agent-profile-communication"><input id="agentLearnFromConversations" type="checkbox" disabled /> Learn from conversations</label><p id="agentLearnFromConversationsHelp" class="help">Available for independent local profiles only. Provider profiles and private chats in their apps are not read automatically.</p><label id="agentLearningModelField">Local learning model<select id="agentLearningModel" aria-label="Local learning model" aria-describedby="agentLearningModelHelp"><option value="">Use conversation model when local</option></select><span id="agentLearningModelHelp" class="help">Optional. Choose a local model for learning even when the conversation uses another model. Retained conversation text stays on this computer.</span></label></div></details>
+          </div>
+          <div class="modal-foot">
+            <button
+              type="button"
+              class="ghost-button danger-text hidden"
+              id="deleteAgentBtn"
+            >
+              Remove profile
+            </button>
+            <div class="modal-actions">
+              <button
+                type="button"
+                class="secondary-button"
+                data-action="close-modal"
+              >
+                Cancel</button
+              ><button type="submit" class="primary-button">Save agent</button>
+            </div>
+          </div>
+                </form>
+      </div>
+    </div>
+
+    <div id="guideDrawer" class="drawer-backdrop hidden">
+      <aside
+        class="guide-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="guideDrawerTitle"
+      >
+        <div class="drawer-head">
+          <div>
+            <div class="eyebrow">STEP-BY-STEP GUIDE</div>
+            <h2 id="guideDrawerTitle">Start here</h2>
+          </div>
+          <button class="close-button" data-action="close-guide-topic">
+            ×
+          </button>
+        </div>
+        <div id="guideDrawerBody" class="guide-drawer-body"></div>
+        <div class="drawer-foot">
+          <button class="secondary-button" data-action="close-guide-topic">
+            Done
+          </button>
+        </div>
+      </aside>
+    </div>
+
+    <dialog id="guideImageViewer" class="guide-image-viewer" aria-labelledby="guideImageTitle">
+      <header class="guide-image-toolbar">
+        <h2 id="guideImageTitle">Guide screenshot</h2>
+        <div>
+          <button id="guideImageSize" type="button" class="secondary-button">Actual size</button>
+          <button type="button" class="secondary-button" data-close-guide-image autofocus>Close</button>
+        </div>
+      </header>
+      <div class="guide-image-stage"><img id="guideImageFull" alt="" /></div>
+    </dialog>
+
+    <div id="onboarding" class="onboarding-backdrop hidden">
+      <div
+        class="onboarding-shell"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboardingTitle"
+      >
+        <div class="onboarding-progress">
+          <span id="onboardingProgressBar"></span>
+        </div>
+        <div class="onboarding-top">
+          <div class="brand-lockup">
+            <div class="brand-mark mini-core">
+              <img src="/brand-icosahedron.svg" alt="" />
+            </div>
+            <strong>HexiGrid</strong>
+          </div>
+          <button class="ghost-button" data-action="skip-onboarding">
+            Set up later
+          </button>
+        </div>
+        <section class="onboarding-step" data-onboarding-step="0">
+          <div class="welcome-core" aria-hidden="true">
+            <div class="orbit orbit-one"><i></i></div>
+            <div class="orbit orbit-two"><i></i></div>
+            <div class="core-center"><span></span></div>
+          </div>
+          <div class="onboarding-copy">
+            <h1 id="onboardingTitle">Welcome to HexiGrid</h1>
+            <p>
+              Choose models, shape personalities, connect tools, chat together,
+              and see exactly what each agent does.
+            </p>
+            <div class="welcome-pills">
+              <span>Local first</span><span>Any number of agents</span
+              ><span>You control permissions</span>
+            </div>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="1">
+          <div class="step-visual owner-visual">
+            <div class="profile-halo">YOU</div>
+          </div>
+          <div class="onboarding-copy">
+            <div class="eyebrow">STEP 1 OF 4</div>
+            <h2>Create your local profile</h2>
+            <p>
+              This name is shown only in your control room. No password or
+              personal details are needed for local use.
+            </p>
+            <label class="onboarding-field"
+              >Display name<input
+                id="onboardingOwnerName"
+                value="Owner"
+                maxlength="80"
+            /></label>
+            <div class="profile-storage-note">
+              <span data-icon="lock" aria-hidden="true"></span>
+              <div>
+                <strong>Saved on this device</strong>
+                <small>Google backup can be managed later from Accounts &amp; devices.</small>
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="2">
+          <div class="step-visual model-visual">
+            <span class="model-beam"></span>
+            <div class="model-node">AI</div>
+            <div class="model-node small one">01</div>
+            <div class="model-node small two">02</div>
+          </div>
+          <div class="onboarding-copy">
+            <div class="eyebrow">STEP 2 OF 4</div>
+            <h2>Connect the AI you want</h2>
+            <p id="onboardingModelStatus">
+              No service is connected until you choose one.
+            </p>
+            <div id="onboardingModelList" class="onboarding-model-list"></div>
+            <button
+              class="primary-button"
+              data-action="open-connections-from-onboarding"
+            >
+              Choose a connection</button
+            ><button
+              class="secondary-button"
+              data-setup-prompt="hexigrid"
+            >
+              Let my AI guide this setup</button
+            ><button
+              class="text-button"
+              data-action="open-guide-from-onboarding"
+              data-guide="connections"
+            >
+              Show me the connection choices →
+            </button>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="3">
+          <div class="step-visual agents-visual">
+            <div class="agent-orb a">A</div>
+            <div class="agent-orb b">+</div>
+            <span></span>
+          </div>
+          <div class="onboarding-copy">
+            <div class="eyebrow">STEP 3 OF 4</div>
+            <h2>Add or bring your first agent</h2>
+            <p>
+              Create a new profile, connect a supported framework, or bring in
+              an existing agent record. Add more accounts only when you want.
+            </p>
+            <ol class="simple-steps">
+              <li>Choose the job you want done.</li>
+              <li>Copy one guided prompt.</li>
+              <li>Review the result before connecting an account.</li>
+            </ol>
+            <button
+              class="primary-button"
+              data-action="onboarding-connect-agent"
+            >
+              Connect or create an agent</button
+            ><button
+              class="secondary-button"
+              data-action="open-prompt-center"
+            >
+              Open the three setup prompts</button
+            ><button
+              class="text-button"
+              data-action="open-guide-from-onboarding"
+              data-guide="ilands"
+            >
+              Read how iLands connects →
+            </button>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="4">
+          <div class="step-visual permission-visual">
+            <div class="permission-shield">✓</div>
+          </div>
+          <div class="onboarding-copy">
+            <div class="eyebrow">STEP 4 OF 4</div>
+            <h2>You decide what agents can do</h2>
+            <p>
+              Start in Converse mode. Switch modes only when you want agents to
+              research, build, or pursue a goal.
+            </p>
+            <div class="permission-preview">
+              <span><strong>Converse</strong> Chat only</span
+              ><span><strong>Approve for me</strong> Ask on risky actions</span
+              ><span><strong>Activity</strong> Track what happened</span>
+            </div>
+          </div>
+        </section>
+        <section class="onboarding-step hidden" data-onboarding-step="5">
+          <div class="welcome-core complete-core" aria-hidden="true">
+            <div class="orbit orbit-one"><i></i></div>
+            <div class="orbit orbit-two"><i></i></div>
+            <div class="core-center"><span>✓</span></div>
+          </div>
+          <div class="onboarding-copy">
+            <div class="eyebrow">SETUP COMPLETE</div>
+            <h2>Setup complete</h2>
+            <p>
+              Start with a local agent, connect an existing agent, or follow
+              any guide when you need help.
+            </p>
+            <div class="finish-actions">
+              <button class="secondary-button" data-action="finish-to-guide">
+                Open how-to guide</button
+              ><button class="primary-button" data-action="finish-onboarding">
+                Enter HexiGrid
+              </button>
+            </div>
+          </div>
+        </section>
+        <div class="onboarding-actions">
+          <button
+            class="ghost-button"
+            id="onboardingBack"
+            data-action="onboarding-back"
+          >
+            Back
+          </button>
+          <div class="onboarding-dots" id="onboardingDots"></div>
+          <button
+            class="primary-button"
+            id="onboardingNext"
+            data-action="onboarding-next"
+          >
+            Begin setup
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div id="authGate" class="auth-gate hidden" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="authTitle" aria-describedby="authCopy">
+      <div class="auth-card">
+        <div class="brand-lockup">
+          <div class="brand-mark mini-core">
+            <img src="/brand-icosahedron.svg" alt="" />
+          </div>
+          <strong>HexiGrid</strong>
+        </div>
+        <div class="eyebrow">PRIVATE DEVICE SIGN-IN</div>
+        <h2 id="authTitle">Unlock this control room</h2>
+        <p id="authCopy">
+          Your local data is protected by a passcode that never leaves this
+          device.
+        </p>
+        <form id="authForm">
+          <label
+            >Local passcode<input
+              id="authPassword"
+              type="password"
+              minlength="10"
+              autocomplete="current-password"
+              required /></label
+          ><label id="authConfirmWrap" class="hidden"
+            >Confirm passcode<input
+              id="authPasswordConfirm"
+              type="password"
+              minlength="10"
+              autocomplete="new-password" /></label
+          ><button
+            class="primary-button full-button"
+            id="authSubmit"
+            type="submit"
+          >
+            Unlock
+          </button>
+          <p id="authFeedback" role="status"></p>
+        </form>
+        <button
+          class="secondary-button full-button hidden"
+          id="authGoogle"
+          type="button"
+        >
+          Continue with Google</button
+        ><button class="ghost-button full-button" id="authSwitch" type="button">
+          Create a local passcode instead</button
+        ><small
+          >Use a passphrase you can remember. HexiGrid cannot recover it for
+          you.</small
+        >
+      </div>
+    </div>
+    <nav class="mobile-bottom-nav" aria-label="Mobile navigation">
+      <button data-view="overview"><span data-icon="home"></span>Home</button
+      ><button data-view="agents"><span data-icon="agents"></span>Agents</button
+      ><button data-view="room"><span data-icon="chat"></span>Chat</button
+      ><button data-action="toggle-mobile-nav">
+        <span data-icon="menu"></span>More
+      </button>
+    </nav>
+    <script src="/brand.js" defer></script>
+    <script src="/icons.js" defer></script>
+    <script src="/setup-prompts.js" defer></script>
+    <script src="/guide-content.js" defer></script>
+    <script src="/vendor/firebase-google.js" defer></script>
+    <script src="/browser-crypto.js" defer></script>
+    <script src="/browser-vault.js" defer></script>
+    <script src="/browser-providers.js" defer></script>
+    <script src="/standalone-runtime.js" defer></script>
+    <script src="/agent-ui.js" defer></script>
+    <script src="/chat-ui.js" defer></script>
+    <script src="/communication-ui.js" defer></script>
+    <script src="/workspace-ui.js" defer></script>
+    <script src="/guide-ui.js" defer></script>
+    <script src="/boot-geometry.js" defer></script>
+    <script src="/boot-particles.js" defer></script>
+    <script src="/boot-veil.js" defer></script>
+    <script src="/boot-environment.js" defer></script>
+    <script src="/boot-loader.js" defer></script>
+    <script src="/device-preferences.js" defer></script>
+    <script src="/interactions.js" defer></script>
+    <script src="/on-device-inference.js" defer></script>
+    <script src="/on-device-chat.js" defer></script>
+    <script src="/codex-deliveries-ui.js" defer></script>
+<script src="/view-renderers.js" defer></script>
+    <script src="/app.js" defer></script>
+    <script src="/providers.js" defer></script>
+    <script src="/harnesses.js" defer></script>
+    <script src="/control-shell.js" defer></script>
+    <script src="/task-ui.js" defer></script>
+    <script src="/harness-job-ui.js" defer></script>
+    <script src="/plugin-ui.js" defer></script>
+    <script src="/hexikeys-ui.js" defer></script>
+    <script src="/backup-ui.js" defer></script>
+    <script src="/local-release-ui.js" defer></script>
+    <script src="/google-backup.js" defer></script>
+    <script src="/portrait-avatar.js" defer></script>
+    <script src="/desktop-media.js" defer></script>
+    <script src="/incoming-voice-call.js" defer></script>
+    <script src="/integrations.js" defer></script>
+    <script src="/setup-prompt-ui.js" defer></script>
+    <script src="/auth-ui.js" defer></script>
+    <script src="/live-voice.js" defer></script>
+    <script src="/avatar-viewer.js" defer></script>
+    <script src="/avatar-stage.js" defer></script>
+    <script src="/live-recording.js" defer></script>
+    <script src="/live-call.js" defer></script>
+    <script src="/hexispace-embed.js" defer></script>
+    <script src="/live-realtime.js" defer></script>
+    <script src="/agent-mail.js" defer></script>
+    <script src="/agent-link.js" defer></script>
+    <script src="/live-generated-voice.js" defer></script>
+  </body>
+</html>

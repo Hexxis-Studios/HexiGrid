@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="theme-color" content="#081525">
+    <title>Connect to HexiGrid</title>
+    <link rel="stylesheet" href="/agent-link-connect.css">
+    <link rel="stylesheet" href="/agent-link-media.css">
+  </head>
+  <body>
+    <main class="link-card">
+      <img src="/brand-icosahedron.svg" alt="" width="58" height="58">
+      <p class="eyebrow">HEXIGRID LINK</p>
+      <h1>Connect this agent</h1>
+      <p>This single-use invitation links one existing agent to the owner’s HexiGrid. It never asks for an iLands password, browser cookie, payment information, or wallet secret.</p>
+      <form id="linkPairForm">
+        <label>Agent name<input id="linkAgentName" maxlength="120" required autocomplete="name"></label>
+        <label>Agent system<input id="linkFramework" maxlength="80" placeholder="e.g. Muse, iLands, or local" required></label>
+        <label>Agent ID, if available<input id="linkExternalId" maxlength="200" autocomplete="off"></label>
+        <button type="submit">Connect securely</button>
+      </form>
+      <p id="linkStatus" role="status">The invitation is checked only after Connect is pressed.</p>
+      <section id="agentWorkspace" class="agent-workspace" hidden aria-labelledby="agentWorkspaceTitle">
+        <h2 id="agentWorkspaceTitle">Agent actions</h2>
+        <pre id="agentOrientation" aria-label="Connection orientation"></pre>
+        <p id="agentCapabilities"></p>
+        <form id="agentActionForm">
+          <label for="agentActionSelect">Action<select id="agentActionSelect" required></select></label>
+          <label for="agentActionInput">Input (JSON)<textarea id="agentActionInput" rows="8" spellcheck="false" autocapitalize="off" autocomplete="off"></textarea></label>
+          <button id="agentActionRun" type="submit">Run action</button>
+        </form>
+        <p id="agentActionStatus" role="status" aria-live="polite"></p>
+        <pre id="agentActionResult" aria-label="Action result"></pre>
+      </section>
+      <details id="relayDiagnostics" hidden><summary>Connection diagnostics</summary><pre id="relayProofLog"></pre></details>
+      <section id="desktopControl" class="desktop-control" hidden aria-labelledby="desktopControlTitle">
+        <div class="control-heading"><div><p class="eyebrow">SIGNED COMPUTER LINK</p><h2 id="desktopControlTitle">Remote computer</h2></div><span id="desktopControlBadge">WAITING</span></div>
+        <p id="desktopControlStatus">Waiting for the owner to start computer access.</p>
+        <div id="desktopFrameWrap" class="desktop-frame-wrap" hidden>
+          <img id="desktopFrame" alt="Current private screen frame from the owner’s computer">
+        </div>
+        <section id="desktopMedia" class="desktop-media" hidden aria-labelledby="desktopMediaTitle">
+          <div class="media-heading"><h3 id="desktopMediaTitle">Live camera and microphone</h3><span id="desktopMediaStatus">Waiting for owner permission</span></div>
+          <img id="desktopCamera" alt="Live camera view shared by the owner" hidden>
+          <button id="desktopAudioEnable" type="button" hidden>Enable microphone playback</button>
+        </section>
+        <fieldset id="pointerControls" disabled>
+          <legend>Screen action</legend>
+          <label><input type="radio" name="pointerAction" value="left" checked> Move and left-click</label>
+          <label><input type="radio" name="pointerAction" value="right"> Move and right-click</label>
+          <label><input type="radio" name="pointerAction" value="middle"> Move and middle-click</label>
+          <label><input type="radio" name="pointerAction" value="move"> Move only</label>
+        </fieldset>
+        <div id="keyboardControls" class="keyboard-controls" aria-disabled="true">
+          <div id="keyCapture" tabindex="0" role="textbox" aria-label="Computer keyboard control">Click here, then press one supported letter, number, or named key</div>
+          <div class="key-grid" aria-label="Common computer keys">
+            <button type="button" data-desktop-key="Enter">Enter</button><button type="button" data-desktop-key="Escape">Esc</button><button type="button" data-desktop-key="Tab">Tab</button><button type="button" data-desktop-key="Space">Space</button>
+            <button type="button" data-desktop-key="ArrowLeft">←</button><button type="button" data-desktop-key="ArrowUp">↑</button><button type="button" data-desktop-key="ArrowDown">↓</button><button type="button" data-desktop-key="ArrowRight">→</button>
+            <button type="button" data-desktop-key="Backspace">Backspace</button><button type="button" data-desktop-key="Delete">Delete</button>
+          </div>
+        </div>
+        <button id="desktopAgentStop" class="stop-button" type="button">Stop my computer access</button>
+      </section>
+      <details><summary>Other ways to connect</summary><p>Agents with a local runtime can use the HexiGrid Link skill and outbound companion. This page is the tab-only option: its credential stays in this tab and is lost when the tab closes.</p></details>
+    </main>
+    <script src="/agent-link-connect.js" type="module"></script>
+  </body>
+</html>

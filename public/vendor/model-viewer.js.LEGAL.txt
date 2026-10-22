@@ -1,0 +1,225 @@
+Bundled license information:
+
+@lit/reactive-element/css-tag.js:
+  /**
+   * @license
+   * Copyright 2019 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   */
+
+@lit/reactive-element/reactive-element.js:
+lit-html/lit-html.js:
+lit-element/lit-element.js:
+@lit/reactive-element/decorators/custom-element.js:
+@lit/reactive-element/decorators/property.js:
+@lit/reactive-element/decorators/state.js:
+@lit/reactive-element/decorators/event-options.js:
+@lit/reactive-element/decorators/base.js:
+@lit/reactive-element/decorators/query.js:
+@lit/reactive-element/decorators/query-all.js:
+@lit/reactive-element/decorators/query-async.js:
+@lit/reactive-element/decorators/query-assigned-nodes.js:
+  /**
+   * @license
+   * Copyright 2017 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   */
+
+lit-html/is-server.js:
+  /**
+   * @license
+   * Copyright 2022 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   */
+
+@lit/reactive-element/decorators/query-assigned-elements.js:
+  /**
+   * @license
+   * Copyright 2021 Google LLC
+   * SPDX-License-Identifier: BSD-3-Clause
+   */
+
+@google/model-viewer/lib/features/extra-model.js:
+  /* @license
+   * Copyright 2026 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+three/build/three.core.js:
+three/build/three.module.js:
+  /**
+   * @license
+   * Copyright 2010-2026 Three.js Authors
+   * SPDX-License-Identifier: MIT
+   */
+
+@google/model-viewer/lib/constants.js:
+@google/model-viewer/lib/utilities.js:
+@google/model-viewer/lib/features/environment.js:
+@google/model-viewer/lib/assets/close-material-svg.js:
+@google/model-viewer/lib/assets/controls-svg.js:
+@google/model-viewer/lib/assets/view-in-ar-material-svg.js:
+@google/model-viewer/lib/template.js:
+@google/model-viewer/lib/utilities/cache-eviction-policy.js:
+@google/model-viewer/lib/three-components/CachingGLTFLoader.js:
+@google/model-viewer/lib/styles/parsers.js:
+@google/model-viewer/lib/styles/conversions.js:
+@google/model-viewer/lib/styles/evaluators.js:
+@google/model-viewer/lib/styles/style-effector.js:
+@google/model-viewer/lib/decorators.js:
+@google/model-viewer/lib/utilities/animation.js:
+@google/model-viewer/lib/features/controls.js:
+@google/model-viewer/lib/three-components/ARRenderer.js:
+@google/model-viewer/lib/three-components/TextureUtils.js:
+@google/model-viewer/lib/three-components/Renderer.js:
+@google/model-viewer/lib/utilities/progress-tracker.js:
+@google/model-viewer/lib/model-viewer-base.js:
+@google/model-viewer/lib/features/animation.js:
+@google/model-viewer/lib/features/annotation.js:
+@google/model-viewer/lib/styles/deserializers.js:
+@google/model-viewer/lib/features/ar.js:
+@google/model-viewer/lib/features/loading.js:
+@google/model-viewer/lib/features/staging.js:
+@google/model-viewer/lib/model-viewer.js:
+  /* @license
+   * Copyright 2019 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/gltf-instance/VariantMaterialLoaderPlugin.js:
+@google/model-viewer/lib/three-components/gltf-instance/VariantMaterialExporterPlugin.js:
+@google/model-viewer/lib/three-components/EnvironmentScene.js:
+  /* @license
+   * Copyright 2021 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/Damper.js:
+@google/model-viewer/lib/three-components/PlacementBox.js:
+@google/model-viewer/lib/three-components/GLTFInstance.js:
+@google/model-viewer/lib/three-components/gltf-instance/ModelViewerGLTFInstance.js:
+@google/model-viewer/lib/features/scene-graph/three-dom-element.js:
+@google/model-viewer/lib/features/scene-graph/image.js:
+@google/model-viewer/lib/features/scene-graph/sampler.js:
+@google/model-viewer/lib/features/scene-graph/texture.js:
+@google/model-viewer/lib/features/scene-graph/texture-info.js:
+@google/model-viewer/lib/features/scene-graph/pbr-metallic-roughness.js:
+@google/model-viewer/lib/features/scene-graph/material.js:
+@google/model-viewer/lib/features/scene-graph/model.js:
+@google/model-viewer/lib/features/scene-graph.js:
+@google/model-viewer/lib/three-components/Hotspot.js:
+  /* @license
+   * Copyright 2020 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/SmoothControls.js:
+  /* @license
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/GroundedSkybox.js:
+  /* @license
+   * Copyright 2023 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/Shadow.js:
+  /* @license
+   * Copyright 2022 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+@google/model-viewer/lib/three-components/ModelScene.js:
+  /* @license
+   * Copyright 2025 Google LLC. All Rights Reserved.
+   * Licensed under the Apache License, Version 2.0 (the 'License');
+   * you may not use this file except in compliance with the License.
+   * You may obtain a copy of the License at
+   *
+   *     http://www.apache.org/licenses/LICENSE-2.0
+   *
+   * Unless required by applicable law or agreed to in writing, software
+   * distributed under the License is distributed on an 'AS IS' BASIS,
+   * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   * See the License for the specific language governing permissions and
+   * limitations under the License.
+   */
+
+three/examples/jsm/libs/fflate.module.js:
+  /*!
+  fflate - fast JavaScript compression/decompression
+  <https://101arrowz.github.io/fflate>
+  Licensed under MIT. https://github.com/101arrowz/fflate/blob/master/LICENSE
+  version 0.8.2
+  */

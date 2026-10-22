@@ -1,0 +1,7 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
+<title>Call chat</title><style>body{width:300px;margin:20px;font:14px system-ui;background:#151926;color:#f5f7ff}h1{font-size:20px}label,select,button{display:block;width:100%;margin:12px 0}select,button{padding:10px;border-radius:8px}button{background:#8166ef;color:white;border:0;cursor:pointer}#disconnect{background:#30364a}p{line-height:1.5}#status{min-height:40px}</style>
+<h1>Connect a call chat</h1><p>Open the conversation you want calls to use, then choose its agent below.</p>
+<label for="agent">Agent</label><select id="agent" aria-label="Agent"></select>
+<label for="label">Call chat name</label><input id="label" aria-label="Call chat name" value="Calls" maxlength="80">
+<button id="connect">Use this chat for calls</button><button id="disconnect">Disconnect call chat</button>
+<p id="status" role="status">Connecting to HexiGrid…</p><script type="module" src="popup.js"></script></html>

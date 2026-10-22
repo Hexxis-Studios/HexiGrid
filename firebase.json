@@ -1,0 +1,15 @@
+{
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "127.0.0.1",
+      "hexigrid.firebaseapp.com"
+    ],
+    "providers": {
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "HexiGrid",
+        "supportEmail": "contact.hexigrid@proton.me"
+      }
+    }
+  }
+}

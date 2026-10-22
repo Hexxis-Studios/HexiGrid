@@ -1,0 +1,6 @@
+.desktop-media { display: grid; gap: 10px; border: 1px solid #ff6f7d66; border-radius: 14px; background: #180b13; padding: 14px; }
+.media-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.media-heading h3 { margin: 0; }
+.media-heading span { color: #ffbdc4; font-size: .82rem; }
+.desktop-media img { display: block; width: min(100%, 640px); margin: auto; border-radius: 10px; background: #02070c; }
+@media (max-width: 600px) { .media-heading { align-items: flex-start; flex-direction: column; } }

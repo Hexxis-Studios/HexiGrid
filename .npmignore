@@ -1,0 +1,5 @@
+**/__pycache__/
+**/*.pyc
+integrations/ilands-door/
+test/
+data/.development-fresh-start

@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a problem using HexiGrid.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include keys, passcodes, tokens, backups or private chats. Redact screenshots. For security issues, see SECURITY.md."
+  - type: input
+    id: version
+    attributes:
+      label: HexiGrid version
+      placeholder: "0.0.1 Alpha 1"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Windows or browser version
+      placeholder: "Windows 11 desktop app, or Chrome version…"
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: What did you do, what happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error or screenshot
+      description: Include only the safe error shown and screenshots with private details removed.

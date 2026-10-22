@@ -1,0 +1,2 @@
+body.booting>.ambient-grid,body.booting>.mobile-header,body.booting>.nav-scrim,body.booting>.app-shell,body.booting>.modal-backdrop,body.booting>.drawer-backdrop,body.booting>.onboarding-backdrop,body.booting>.auth-gate,body.booting>.mobile-bottom-nav{visibility:hidden}
+html:has(body.booting),body.booting{height:100%;overflow:hidden}

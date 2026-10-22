@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">Hexxis brand mark</title>
+  <desc id="desc">A luminous three-dimensional wireframe icosahedron with the brand gradient.</desc>
+  <defs>
+    <linearGradient id="wire" x1="44" y1="214" x2="212" y2="42" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#73f5e0"/><stop offset=".28" stop-color="#f1f4ff"/><stop offset=".55" stop-color="#8b7cff"/><stop offset=".78" stop-color="#ffca7a"/><stop offset="1" stop-color="#73f5e0"/>
+    </linearGradient>
+    <radialGradient id="halo"><stop stop-color="#92fff0" stop-opacity=".38"/><stop offset=".56" stop-color="#8f83ff" stop-opacity=".1"/><stop offset="1" stop-color="#8f83ff" stop-opacity="0"/></radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <circle cx="128" cy="128" r="112" fill="url(#halo)" opacity=".72"/>
+  <g fill="none" stroke="url(#wire)" stroke-linecap="round" stroke-linejoin="round" filter="url(#glow)">
+    <path d="M96.6 183.4 164.3 202.9 82 191.9 171.1 149.2 168.4 56.8 78.4 90.9 93.6 57.1 101.3 114.8 47.6 127.2 96.6 183.4 47.6 127.2 160.3 152.2 210.3 128.8 164.3 202.9 160.3 152.2 168.4 56.8 210.3 128.8 171.1 149.2" opacity=".42" stroke-width="2"/>
+    <path d="M96.6 183.4 164.3 202.9 M96.6 183.4 82 191.9 M96.6 183.4 160.3 152.2 M96.6 183.4 101.3 114.8 M96.6 183.4 47.6 127.2 M164.3 202.9 82 191.9 M164.3 202.9 160.3 152.2 M164.3 202.9 210.3 128.8 M164.3 202.9 171.1 149.2 M93.6 57.1 168.4 56.8 M93.6 57.1 78.4 90.9 M93.6 57.1 101.3 114.8 M93.6 57.1 47.6 127.2 M168.4 56.8 78.4 90.9 M168.4 56.8 160.3 152.2 M168.4 56.8 210.3 128.8 M168.4 56.8 171.1 149.2 M78.4 90.9 82 191.9 M78.4 90.9 101.3 114.8 M78.4 90.9 47.6 127.2 M82 191.9 171.1 149.2 M82 191.9 47.6 127.2 M101.3 114.8 47.6 127.2 M101.3 114.8 160.3 152.2 M47.6 127.2 160.3 152.2 M160.3 152.2 210.3 128.8 M160.3 152.2 171.1 149.2 M210.3 128.8 171.1 149.2" stroke-width="3.2" opacity=".9"/>
+  </g>
+  <g fill="#e4fffb" stroke="url(#wire)" stroke-width="2" opacity=".92">
+    <circle cx="96.6" cy="183.4" r="3"/><circle cx="164.3" cy="202.9" r="3"/><circle cx="93.6" cy="57.1" r="3"/><circle cx="168.4" cy="56.8" r="3"/>
+    <circle cx="78.4" cy="90.9" r="2.5"/><circle cx="82" cy="191.9" r="2.5"/><circle cx="160.3" cy="152.2" r="2.5"/><circle cx="210.3" cy="128.8" r="2.5"/><circle cx="171.1" cy="149.2" r="2.5"/><circle cx="101.3" cy="114.8" r="2.5"/><circle cx="47.6" cy="127.2" r="2.5"/>
+  </g>
+</svg>

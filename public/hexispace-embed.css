@@ -1,0 +1,56 @@
+html.hexispace-live-embed,
+html.hexispace-live-embed body {
+  min-width: 320px;
+  min-height: 100%;
+  overflow: auto;
+  background: transparent;
+}
+
+html.hexispace-live-embed #bootLoader,
+html.hexispace-live-embed .ambient-grid,
+html.hexispace-live-embed .mobile-header,
+html.hexispace-live-embed .nav-scrim,
+html.hexispace-live-embed .sidebar,
+html.hexispace-live-embed .topbar,
+html.hexispace-live-embed .mobile-tab-bar {
+  display: none !important;
+}
+
+html.hexispace-live-embed .app-shell {
+  display: block;
+  min-height: 0;
+  padding: 0;
+  background: transparent;
+}
+
+html.hexispace-live-embed .main-content {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  margin: 0;
+  padding: clamp(10px, 2vw, 22px);
+  background: transparent;
+}
+
+html.hexispace-live-embed .main-content > .view {
+  display: none !important;
+}
+
+html.hexispace-live-embed .main-content > #view-live.active-view {
+  display: block !important;
+}
+
+html.hexispace-live-embed #view-live .page-intro p {
+  max-width: 70ch;
+}
+
+html.hexispace-live-embed #view-live .live-layout,
+html.hexispace-live-embed #view-live .live-voice-panel {
+  max-width: 100%;
+}
+
+@media (max-width: 640px) {
+  html.hexispace-live-embed .main-content {
+    padding: 10px;
+  }
+}

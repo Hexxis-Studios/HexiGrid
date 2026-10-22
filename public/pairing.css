@@ -1,0 +1,15 @@
+html { color-scheme: dark; }
+body { display: grid; min-height: 100vh; place-items: center; margin: 0; background: #070b11; color: #eef4ff; font: 16px system-ui, sans-serif; }
+.card { box-sizing: border-box; width: min(480px, calc(100% - 32px)); border: 1px solid #33485a; border-radius: 22px; background: #0d151e; padding: clamp(20px, 5vw, 32px); box-shadow: 0 30px 80px #0008; }
+h1 { margin: 0 0 8px; }
+p { color: #a8b6c4; line-height: 1.6; }
+form > label { display: block; margin: 14px 0 8px; }
+input:not([type="checkbox"]), button { box-sizing: border-box; width: 100%; min-height: 48px; border-radius: 10px; padding: 13px; font: inherit; }
+input:not([type="checkbox"]) { border: 1px solid #40566a; background: #081019; color: #fff; text-transform: uppercase; letter-spacing: .15em; }
+fieldset { min-width: 0; margin: 18px 0; border: 1px solid #33485a; border-radius: 12px; padding: 12px; }
+legend { padding: 0 6px; }
+fieldset label { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 12px; align-items: start; min-height: 44px; padding: 8px 4px; line-height: 1.35; cursor: pointer; }
+fieldset label + label { border-top: 1px solid #243444; }
+input[type="checkbox"] { box-sizing: border-box; width: 20px; height: 20px; margin: 0; accent-color: #1dc4aa; cursor: pointer; }
+button { margin-top: 10px; border: 1px solid #75e4d1; background: #1dc4aa; color: #06110f; font-weight: 750; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }

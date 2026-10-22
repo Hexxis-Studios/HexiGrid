@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "HexiGrid Call Chat",
+  "version": "0.1.0",
+  "description": "Connect a conversation you choose to your HexiGrid calls.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzZ/iFg+zjQlGKZlBbnoNFUc/K75gZ+UCWOSBfnos3Fp255FuWq+r8CKQeG4UQSYU/sdK1I9hk/S2JK3KGnkXzxaLIpznxX6qCU7ic+hWZq/iNvEf/GvZ57OfFqag8eiTWKxoGNcW6NeSlvvtzNQNfOHMX8o5F1Iy71nurQreSLT8fHCVsWmTAsLSsg9THqDcSDoyOFgi+LuO69Wn0gVQgsvMnHUN4MM9hTrs0kpgQhEUcBRlXOTW63vyQxxAgJLBN/lJmm04IsZ8iVrAhEwqUFvho6vfeP9NzQiwXi0BNKku1Qo5HA92upviLwB1QJScT7cv6Ky8oaxrnHDrtbVM2wIDAQAB",
+  "permissions": ["activeTab", "scripting", "storage", "nativeMessaging"],
+  "optional_host_permissions": ["https://muse.ai/*"],
+  "background": { "service_worker": "worker.js", "type": "module" },
+  "action": { "default_popup": "popup.html", "default_title": "Connect a call chat" }
+}

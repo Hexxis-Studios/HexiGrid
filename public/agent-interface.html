@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow,noarchive" />
+  <title>HexiGrid Agent Interface</title>
+  <link rel="stylesheet" href="/agent-interface.css" />
+  <link rel="stylesheet" href="/incoming-voice-call.css" />
+  <link rel="alternate" type="application/json" href="/api/agent-interface" title="HexiGrid agent interface manifest" />
+</head>
+<body>
+  <header><div class="agent-brand"><img src="/brand-icosahedron.svg" alt="" /><div><span>HEXIGRID / AGENT INTERFACE</span><h1>Your HexiGrid workspace</h1></div></div><nav><a href="/">Human interface</a><a href="/api/agent-interface">API manifest (JSON)</a></nav></header>
+  <main id="agentInterface" aria-busy="true">
+    <section class="notice" id="agentStatus" data-resource="status" role="status" aria-live="polite" aria-atomic="true"><h2>Status</h2><p>Restoring your signed-in workspace…</p></section>
+    <section class="unlock-panel" id="agentUnlock" aria-labelledby="agentUnlockTitle" hidden>
+      <h2 id="agentUnlockTitle">Unlock this device</h2>
+      <p id="agentUnlockCopy">Continue with the Google account linked to this workspace. A local passcode is an optional fallback when one has been configured.</p>
+      <button id="agentGoogleSignIn" type="button" hidden>Continue with Google</button>
+      <form id="agentUnlockForm"><label for="agentPasscode">Local passcode</label><input id="agentPasscode" type="password" minlength="10" autocomplete="current-password" aria-describedby="agentUnlockFeedback" required /><button type="submit">Unlock agent interface</button><small id="agentUnlockFeedback" role="status" aria-live="polite" aria-atomic="true"></small></form>
+    </section>
+    <section class="workspace-navigation" aria-labelledby="agentNavigationTitle">
+      <div class="workspace-navigation-heading"><div><h2 id="agentNavigationTitle">Go to a task</h2><p>Use the controls below or read the API contracts to act programmatically.</p></div><button id="agentWorkspaceRefresh" type="button">Refresh workspace</button></div>
+      <nav aria-label="Workspace sections"><a href="#api-actions">Find an API action</a><a href="#computer-access">Computer access &amp; permissions</a><a href="#memory-recall">Browse memory</a><a href="#memory-review">Memory review</a><a href="#memory-sharing">Shared memory</a><a href="#codex-routing">Codex conversations</a><a href="#agent-roster">Agents</a><a href="#chat-rooms">Chat rooms</a><a href="#agent-tasks">Tasks</a><a href="#model-connections">Models</a><a href="#agent-usage">AI usage</a><a href="#voice-activation">Voice</a><a href="#action-receipts">Action receipts</a></nav>
+      <p>Remote agents authenticate with their paired signed Link. This browser's owner session is not a credential for an external agent.</p>
+    </section>
+    <section aria-labelledby="hexiverseNoteTitle">
+      <h2 id="hexiverseNoteTitle">HexiVerse — Coming soon</h2>
+      <p>HexiVerse, the shared 3D world for you and your agents, is in development.</p>
+    </section>
+    <section id="memory-recall" data-resource="agentMemoryFacts" aria-labelledby="agentMemoryRecallTitle">
+      <div class="memory-review-heading"><div><h2 id="agentMemoryRecallTitle">Browse agent memory</h2><p>Search stays local. Signed-in owners can create and revise facts below; remote agents use their signed memory API. Browsing never calls a model.</p></div><button id="memoryRecallRefresh" type="button">Refresh memory</button></div>
+      <div class="memory-recall-controls">
+        <label>Store<select id="memoryRecallStore" aria-label="Memory store"><option value="facts">Agent memories</option><option value="notes">Your notes</option><option value="skills">Learned skills</option></select></label>
+        <label>Agent<select id="memoryRecallAgent" aria-label="Memory agent"></select></label>
+        <label>Search memory<input id="memoryRecallQuery" type="search" maxlength="500" /></label>
+        <label>Detail<select id="memoryRecallDepth" aria-label="Recall detail"><option value="0">Current facts</option><option value="1">Facts + revision history</option><option value="2">Facts + history + evidence</option></select></label>
+        <label>Standing<select id="memoryRecallStanding" aria-label="Note standing"><option value="current">Active + conditional</option><option value="all">All standings</option><option value="active">Active</option><option value="conditional">Conditional</option><option value="superseded">Superseded</option><option value="disputed">Disputed</option><option value="rejected">Rejected</option><option value="historical">Historical</option></select></label>
+      </div>
+      <div class="memory-recall-meta"><p id="memoryRecallStatus" role="status" aria-live="polite"></p><button id="memoryRecallCreateSkill" type="button" hidden>Create skill</button><button id="memoryRecallProfile" type="button" hidden>Open agent profile</button></div>
+      <div id="skillQuarantineReview" class="hidden" aria-labelledby="skillQuarantineTitle">
+        <h3 id="skillQuarantineTitle">Risky skill drafts</h3>
+        <p>These drafts stay inactive until reviewed. This screen can reject a draft, but cannot approve or activate it.</p>
+        <p id="skillQuarantineStatus" role="status" aria-live="polite"></p>
+        <div id="skillQuarantineList" class="memory-recall-list"></div>
+      </div>
+      <details id="memoryRollbackPanel" class="memory-rollback-panel">
+        <summary>Save or restore memory</summary>
+        <p>Save a small restore point before a major change. Restoring adds history-preserving revisions; it does not revive rejected or permanently deleted facts.</p>
+        <div class="memory-rollback-save"><label for="memoryRollbackLabel">Checkpoint name <input id="memoryRollbackLabel" maxlength="80" placeholder="Optional, e.g. Before project cleanup"></label><button id="memoryRollbackCreate" class="secondary-button" type="button">Save checkpoint</button></div>
+        <p id="memoryRollbackStatus" role="status" aria-live="polite">Choose an agent to see saved checkpoints.</p>
+        <div id="memoryRollbackList" class="memory-recall-list"></div>
+      </details>
+        <details><summary>Memory check</summary><p id="memoryHealthStatus" role="status" aria-live="polite">Checks saved facts and notes without changing them.</p><button id="memoryHealthCheck" type="button">Check memories</button><button id="memoryHealthMore" type="button" class="hidden">Check next page</button><div id="memoryHealthIssues"></div></details>
+        <div id="memoryRecallList" class="memory-recall-list"></div>
+      <button id="memoryRecallMore" type="button" class="hidden">Show more results</button>
+    </section>
+    <section id="memory-review" data-resource="memory-review" aria-labelledby="memoryReviewTitle">
+      <div class="memory-review-heading"><div><h2 id="memoryReviewTitle">Memory proposals <span id="memoryReviewCount"></span></h2><p>Ordinary proposals can be saved as unverified memory. Quarantined candidates stay excluded and cannot be approved.</p></div><button id="memoryReviewRefresh" type="button">Refresh</button></div>
+      <p id="memoryReviewStatus" role="status" aria-live="polite"></p>
+      <div id="memoryReviewList"></div>
+    </section>
+    <section data-resource="rules"><details><summary>Operating rules</summary><ol id="agentRules"></ol></details></section>
+    <section data-resource="current-policy"><h2>Current policy</h2><dl id="agentPolicy"></dl></section>
+    <section id="codex-routing" data-resource="codex-relay" aria-labelledby="codexRelayTitle">
+      <h2 id="codexRelayTitle">Codex conversations</h2>
+      <p>Choose the default Codex conversation for a paired Link. Owner-trusted Links can also address existing conversations by exact name when that option is enabled. Codex must be running on this computer.</p>
+      <div id="agentCodexDeliveries"></div>
+<form id="codexRelayForm">
+        <label for="codexRelayLink">Paired agent link</label>
+        <select id="codexRelayLink"><option value="">Choose a connected link</option></select>
+        <label for="codexRelayThread">Codex thread ID</label>
+        <input id="codexRelayThread" inputmode="text" autocomplete="off" placeholder="Paste the existing Codex thread ID" />
+        <label><input id="codexRelayReplies" type="checkbox" checked /> Return Codex replies through the link</label>
+        <label><input id="codexRelayNamedThreads" type="checkbox" /> Let this owner-trusted Link address existing Codex conversations by exact name</label>
+        <label><input id="codexRelayEnabled" type="checkbox" /> Enable the relay</label>
+        <button type="submit">Save relay</button>
+        <small id="codexRelayFeedback" role="status" aria-live="polite"></small>
+      </form>
+    </section>
+    <section id="computer-access" data-resource="desktop-bridge" aria-labelledby="desktopBridgeTitle">
+      <h2 id="desktopBridgeTitle">Computer access</h2>
+      <p>Choose a paired agent, set its permissions, then start a computer session. Scoped agents use project files. Owner-trusted agents can use machine files and processes with the corresponding permissions. Screen, camera, microphone and speaker access also need the session switches below. <strong>Stop</strong> cuts active access immediately. <strong>Take over</strong> pauses agent input while you keep the screen view.</p>
+      <form id="desktopBridgeForm">
+        <label for="desktopBridgeLink">Connected Hexonaut</label>
+        <select id="desktopBridgeLink"><option value="">Choose a connected link</option></select>
+        <div class="bridge-actions"><button id="desktopBridgeGrant" type="button">Grant eight computer and project scopes</button><button id="desktopBridgeRevoke" type="button">Revoke computer and project scopes</button></div>
+        <small id="desktopDoorAccessStatus" role="status" aria-live="polite">Select the exact paired link to review its computer and project scopes.</small>
+        <div class="bridge-actions"><button id="ownerAgentGrant" type="button">Grant owner-agent machine access</button><button id="ownerAgentRevoke" type="button">Return to scoped access</button></div>
+        <small id="ownerAgentStatus" role="status" aria-live="polite">Scoped access is the default. Owner-agent trust permits machine files and local processes only for the selected Link while its computer session is active and policy allows them.</small>
+        <fieldset><legend>Permissions for this paired Link</legend><p>Change one permission at a time without sending another link. Memory read opens this agent’s own HexiGrid memory. With memory write and owner trust, this agent can autonomously add and correct its memory under current policy; a scoped Link queues writes for review. Cross-agent memory still needs a separate owner-approved share. An active computer session and its switches control live device access.</p><div id="desktopLinkPermissions"></div></fieldset>
+        <label><input id="desktopBridgeView" type="checkbox" checked /> Let the Hexonaut see the screen</label>
+        <label><input id="desktopBridgeControl" type="checkbox" /> Let the Hexonaut use the mouse and keyboard</label>
+        <label><input id="desktopBridgeText" type="checkbox" /> Let the Hexonaut type text during this session</label>
+         <label><input id="desktopBridgeCamera" type="checkbox" /> Share my camera for this session</label>
+         <label><input id="desktopBridgeMicrophone" type="checkbox" /> Share my microphone for this session</label>
+         <label><input id="desktopBridgeSpeaker" type="checkbox" /> Let the Hexonaut speak through my speakers for this session</label>
+         <label for="desktopBridgeMicrophoneDevice">Microphone for this session<select id="desktopBridgeMicrophoneDevice"><option value="">System default microphone</option></select></label>
+         <small id="desktopBridgeMicrophoneStatus" class="media-device-status" role="status" aria-live="polite">No microphone is being shared.</small>
+         <div id="desktopBridgeMicrophoneMeter" class="microphone-meter" hidden><div class="meter-heading"><span>Microphone level</span><output id="desktopBridgeMicrophoneLevelText">Not active</output></div><meter id="desktopBridgeMicrophoneLevel" min="0" max="1" value="0">0%</meter></div>
+         <small id="desktopBridgeSpeakerStatus" class="media-device-status" role="status" aria-live="polite">Agent speaker output is off.</small>
+         <button id="desktopBridgeSpeakerEnable" type="button" hidden>Enable agent audio</button>
+        <div class="bridge-actions"><button type="submit">Start computer access</button><button id="desktopBridgeStop" type="button">Stop</button><button id="desktopBridgeTakeover" type="button">Take over</button><button id="desktopBridgeResume" type="button">Resume agent control</button></div>
+        <small id="desktopBridgeFeedback" role="status" aria-live="polite"></small>
+      </form>
+      <section class="voice-call-panel" aria-labelledby="desktopVoiceCallTitle"><div><h3 id="desktopVoiceCallTitle">Voice call</h3><p id="desktopVoiceCallStatus" role="status" aria-live="polite">Start computer access with microphone and agent audio to call.</p></div><div class="bridge-actions"><button id="desktopVoiceCallStart" type="button">Start call</button><button id="desktopVoiceCallMute" type="button">Mute</button><button id="desktopVoiceCallEnd" type="button">End call</button></div></section>
+      <fieldset id="agentSpeechSettings"><legend>Local speech to text</legend><p>Separate from microphone access. Enable transcripts for this exact Link so its runtime can respond to spoken turns. This does not start capture or install an engine.</p><label><input id="agentSpeechEnabled" disabled type="checkbox" /> Send local microphone transcripts to this Link</label><label for="agentSpeechModel">Local model<select id="agentSpeechModel" disabled><option value="tiny">Tiny · fastest</option><option value="base">Base · more accurate</option></select></label><label for="agentSpeechLanguage">Language code<input id="agentSpeechLanguage" disabled value="en" maxlength="12" /></label><details><summary>Audio privacy</summary><label><input id="agentSpeechMemoryOnly" disabled type="checkbox" /> Require memory-only audio</label><p>The current file-based local engine cannot transcribe in this mode. It stays blocked; audio is not sent to a cloud transcriber.</p></details><button id="agentSpeechSave" disabled type="button">Save speech settings</button><p id="agentSpeechStatus" role="status" aria-live="polite">Choose a connected Link.</p></fieldset>
+      <div id="desktopBridgePreview" class="desktop-preview" hidden><div class="desktop-preview-bar"><span id="desktopBridgeStatus"></span><button id="desktopBridgeRefresh" type="button">Refresh screen</button></div><img id="desktopBridgeFrame" alt="Live view of the computer screen" /></div>
+    </section>
+    <section id="voice-activation" data-resource="wake-word" aria-labelledby="wakeWordTitle">
+      <h2 id="wakeWordTitle">Private voice activation</h2>
+      <p>The wake-word detector runs in this browser tab. Audio stays on this computer until the phrase fires, then the selected bridge receives the command stream. Push to talk is always available.</p>
+      <form id="wakeWordForm">
+        <label><input id="wakeWordEnabled" type="checkbox" /> Enable local wake word</label>
+        <label><input id="wakeWordAlways" type="checkbox" /> Keep local detection active while this tab is open</label>
+        <label><input id="wakeWordPushToTalk" type="checkbox" checked /> Enable push to talk</label>
+        <label for="wakeWordPhrase">Phrase for the selected Hexonaut<input id="wakeWordPhrase" maxlength="80" placeholder="Hey Agent" list="wakeWordPresets" /></label>
+        <datalist id="wakeWordPresets"><option value="Hey Hexi"></option><option value="Hey Agent"></option><option value="Hey Hexonaut"></option><option value="Computer, listen"></option></datalist>
+        <div class="wake-word-actions"><button id="wakeWordTrain" type="button">Record sample 1 of 3</button><button id="wakeWordEnable" type="button">Start local detector</button><button id="wakeWordDisable" type="button">Stop local detector</button><button id="wakeWordPush" type="button">Hold to talk</button></div>
+        <small id="wakeWordStatus" role="status" aria-live="polite">Local detection is off. No microphone audio is leaving this computer.</small>
+      </form>
+    </section>
+    <section id="model-connections" data-resource="providers"><h2>Model connections</h2><div id="agentProviders"></div></section>
+    <section id="agent-roster" data-resource="agents"><h2>Agents</h2><div id="agentRoster"></div></section>
+    <section id="agent-tasks" data-resource="tasks" aria-labelledby="agentTasksTitle"><h2 id="agentTasksTitle">Tasks</h2><p>Local owner snapshot. Expand instructions and recent runs; use Refresh workspace for current standing. Find createTask, updateTask, runTask and cancelTask in the API catalog to act with this local owner session. Remote Links use signedLinkTasks and can access only their own granted tasks.</p><div id="agentTasks"></div></section><section id="chat-rooms" data-resource="rooms"><h2>Rooms</h2><div id="agentRooms"></div></section>
+    <section id="agent-usage" data-resource="usage"><h2>AI usage</h2><p>Local owner snapshot of requests recorded through HexiGrid, not provider billing or activity in another app. Counts exclude prompts and reply text. Local owner programs can read GET /api/bootstrap. Owner-trusted agents with active computer access can read signed GET /agent-link/v1/usage for all three periods of bounded totals and the current 7-day budget. Scoped Links cannot read these workspace totals. Refresh workspace updates this snapshot.</p><label for="agentUsagePeriod">Usage period</label><select id="agentUsagePeriod"><option value="1">24 hours</option><option value="7" selected>7 days</option><option value="30">30 days</option></select><p id="agentUsageSummary" role="status"></p><div id="agentUsageRows"></div><details><summary>Structured usage report</summary><pre id="agentUsageJson"></pre></details></section>
+    <section id="memory-sharing" data-resource="memoryShares"></section>
+    <section id="action-receipts" data-resource="receipts"><h2>Latest receipts</h2><div id="agentReceipts"></div></section>
+    <section id="hexikeys-addon" data-resource="hexikeysAddon" data-hexikeys-addon></section>
+    <section id="api-actions" data-resource="actions" aria-labelledby="agentActionsTitle">
+      <h2 id="agentActionsTitle">Find an API action</h2>
+      <p>Search by task, endpoint, tool or operation. Expand an entry for its exact request contract. Required grants and current policy still apply; an entry in this catalog does not grant access.</p>
+      <div class="action-catalog-filters"><label for="agentActionSearch">Search<input id="agentActionSearch" type="search" placeholder="memory, skills, thread, files…" autocomplete="off" /></label><label for="agentActionAuthentication">Authentication<select id="agentActionAuthentication"><option value="all">All sessions</option><option value="signed">Signed Link (remote agents)</option><option value="owner">Owner session only</option><option value="workspace">Workspace session</option></select></label></div>
+      <p id="agentActionCount" role="status" aria-live="polite"></p><div id="agentActions"></div>
+    </section>
+  </main>
+  <script src="/browser-crypto.js" defer></script>
+  <script src="/browser-vault.js" defer></script>
+  <script src="/browser-providers.js" defer></script>
+  <script src="/standalone-runtime.js" defer></script>
+  <script src="/wake-word.js" defer></script>
+  <script src="/desktop-media.js" defer></script>
+  <script src="/portrait-avatar.js" defer></script>
+  <script src="/incoming-voice-call.js" defer></script>
+  <script src="/desktop-screen-capture.js" defer></script>
+  <script src="/vendor/firebase-google.js" defer></script>
+  <script src="/wake-word-ui.js" defer></script>
+  <script src="/codex-deliveries-ui.js" defer></script>
+<script src="/view-renderers.js" defer></script>
+  <script src="/agent-interface.js" defer></script>
+  <script src="/hexikeys-ui.js" defer></script>
+</body>
+</html>

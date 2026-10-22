@@ -1,0 +1,18 @@
+.boot-loader{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 42%,#123d5b 0%,#071c35 52%,#020914 100%);transition:opacity .42s ease,visibility .42s ease;outline:none;cursor:wait;isolation:isolate}
+.boot-loader.ready{cursor:pointer}
+.boot-loader.ready:focus-visible{box-shadow:inset 0 0 0 2px rgba(99,233,255,.72)}
+.boot-loader.unlocked{opacity:0;visibility:hidden;pointer-events:none}
+.boot-environment{position:absolute;inset:0;z-index:0;display:block;width:100%;height:100%;opacity:.82;pointer-events:none;transition:opacity .82s ease}
+.boot-environment.css-fallback{background:linear-gradient(135deg,#41d3ec,#79e6f1 46%,#23a7d1)}
+.boot-hologram{position:absolute;z-index:2;left:50%;top:50%;display:block;width:min(76vmin,720px);height:min(76vmin,720px);transform:translate(-50%,-50%) scale(1);filter:drop-shadow(0 0 16px rgba(86,229,255,.36));pointer-events:none;transition:opacity .82s ease,transform .92s cubic-bezier(.16,.78,.2,1)}
+.boot-loader.opening .boot-hologram{opacity:1;transform:translate(-50%,-50%) scale(1.04)}
+.boot-loader.opening .boot-environment{opacity:.82}
+.boot-loader.departing .boot-hologram{opacity:0;transform:translate(-50%,-50%) scale(4.8)}
+.boot-loader.departing .boot-environment{opacity:0}
+.boot-loader.unlocked .boot-hologram{opacity:0;transform:translate(-50%,-50%) scale(4.8)}
+.boot-loader::after{content:"";position:absolute;inset:-20%;z-index:3;pointer-events:none;opacity:0;background:radial-gradient(circle at 50% 50%,rgba(242,255,255,.68) 0,rgba(132,239,255,.42) 8%,rgba(96,218,255,.14) 23%,transparent 48%);transform:scale(.15)}
+.boot-loader.departing::after{animation:boot-flash .72s ease-out both}
+@keyframes boot-flash{0%{opacity:0;transform:scale(.15)}24%{opacity:.5}100%{opacity:0;transform:scale(2.8)}}
+.sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:560px){.boot-hologram{width:min(92vw,620px);height:min(92vw,620px)}}
+@media(prefers-reduced-motion:reduce){.boot-loader{backdrop-filter:none}.boot-hologram,.boot-environment{transition-duration:.01ms}.boot-loader.departing::after{animation:none;opacity:0}}

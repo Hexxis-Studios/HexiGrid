@@ -1,0 +1,53 @@
+.incoming-voice-call{position:fixed;inset:auto 24px 24px auto;margin:0;width:min(440px,calc(100vw - 32px));max-width:none;padding:22px;border:1px solid rgba(127,228,214,.55);border-radius:16px;background:linear-gradient(145deg,#172432,#101620 72%);color:#eff5ff;box-shadow:0 24px 80px rgba(0,0,0,.56),0 0 0 1px rgba(127,228,214,.1);font:inherit;z-index:10050}
+.incoming-voice-call::backdrop{background:transparent}
+.incoming-voice-call[open]{animation:incoming-call-arrive .2s ease-out}
+.incoming-voice-call__eyebrow{color:#7fe4d6;font:11px/1.4 ui-monospace,monospace;letter-spacing:.15em}
+.incoming-voice-call h2{margin:10px 0 4px;font-size:21px;letter-spacing:-.03em}
+.incoming-voice-call__caller{margin:0;color:#eff5ff;font-weight:650}
+.incoming-voice-call__status{min-height:2.8em;margin:10px 0 16px;color:#aab8ca;font-size:13px;line-height:1.45}
+.incoming-voice-call__controls{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.incoming-voice-call__controls button{min-height:42px;border:1px solid #34465a;border-radius:9px;padding:9px 13px;background:#172330;color:#eff5ff;font:inherit;font-weight:650;cursor:pointer}
+.incoming-voice-call__controls button:hover:not(:disabled){border-color:#7fe4d6}
+.incoming-voice-call__controls button:focus-visible{outline:2px solid #baaaff;outline-offset:3px}
+.incoming-voice-call__controls button:disabled{opacity:.58;cursor:wait}
+.incoming-voice-call__accept{background:#75d9cb!important;color:#071413!important;border-color:#75d9cb!important}
+.incoming-voice-call__decline{border-color:#a75064!important;color:#ffdce2!important;background:#321722!important}
+.incoming-voice-call__ringtone{margin-right:auto}
+.incoming-call-dock{position:fixed;z-index:10040;right:22px;bottom:22px;display:flex;align-items:center;gap:14px;max-width:min(720px,calc(100vw - 32px));padding:10px 12px;border:1px solid rgba(127,228,214,.5);border-radius:14px;background:linear-gradient(140deg,#192a39,#111922);color:#eff5ff;box-shadow:0 14px 42px #0008;font:inherit}
+.incoming-call-dock[hidden]{display:none}.incoming-call-dock__identity{display:grid;min-width:100px}.incoming-call-dock__identity strong{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.incoming-call-dock__identity span{color:#9eb2c2;font-size:12px}.incoming-call-dock__timer{font-variant-numeric:tabular-nums;color:#c6d3df}.incoming-call-dock__controls{display:flex;gap:6px}.incoming-call-dock__controls button{min-height:36px;border:1px solid #3d5265;border-radius:9px;padding:7px 10px;background:#1c2b39;color:#eff5ff;font:inherit;font-weight:650;cursor:pointer}.incoming-call-dock__controls button:hover:not(:disabled){border-color:#7fe4d6}.incoming-call-dock__controls button:focus-visible{outline:2px solid #baaaff;outline-offset:2px}.incoming-call-dock__controls button:disabled{opacity:.55;cursor:wait}.incoming-call-dock__controls .incoming-call-dock__audio{background:#75d9cb;border-color:#75d9cb;color:#071413}.incoming-call-dock__controls .incoming-call-dock__end{background:#8f2739;border-color:#bd5264;color:#fff}
+@keyframes incoming-call-arrive{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.incoming-voice-call[open]{animation:none}}
+@media(max-width:520px){.incoming-voice-call{inset:auto 12px 12px;margin:0;width:calc(100vw - 24px);padding:18px}.incoming-voice-call__controls button{flex:1 1 30%}.incoming-voice-call__ringtone{flex-basis:100%;margin:0}.incoming-call-dock{left:10px;right:10px;bottom:10px;flex-wrap:wrap;gap:8px;padding:8px}.incoming-call-dock__identity{flex:1;min-width:0}.incoming-call-dock__timer{margin-left:auto}.incoming-call-dock__controls{width:100%}.incoming-call-dock__controls button{flex:1;min-width:0;padding:7px 5px}.incoming-call-dock__identity strong{max-width:100px}}
+
+.incoming-call-dock:has(.hexi-call-video:not([hidden])){width:min(460px,calc(100vw - 24px));flex-wrap:wrap}.incoming-call-dock .hexi-call-video{order:3;flex-basis:100%;position:relative;height:260px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#304657,#0c1520)}.hexi-call-video[hidden]{display:none}.hexi-call-agent-view{height:100%;display:grid;place-items:center;text-align:center;color:#b9cddd}.hexi-call-agent-view img,.hexi-call-model{width:100%;height:100%;object-fit:contain}.hexi-call-self-view{position:absolute;right:10px;bottom:10px;width:100px;height:74px;object-fit:cover;border-radius:8px;border:1px solid #80e6d3;transform:scaleX(-1)}.hexi-call-video-name{position:absolute;left:10px;bottom:10px;padding:4px 7px;border-radius:6px;background:#07121bd9;font-size:12px}.incoming-call-dock:has(.hexi-call-video:not([hidden])) .incoming-call-dock__controls{flex:1;flex-wrap:wrap}
+
+.hexi-call-video-tools{position:absolute;right:8px;top:8px;display:flex;gap:5px}.hexi-call-video-tools select,.hexi-call-video-tools button{font:inherit;font-size:12px;color:#eef7ff;background:#102233e8;border:1px solid #425b70;border-radius:7px;padding:5px}.hexi-call-video-tools select[hidden]{display:none}
+.hexi-call-video[data-speaking="true"]{box-shadow:inset 0 0 0 2px #80e6d3}
+
+/* Floating call uses this same local stylesheet under the owner CSP. */
+
+      body.hexi-call-shell{color-scheme:dark;font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;background:#111820;color:#f4f7fb}
+      .hexi-call-shell *{box-sizing:border-box}body.hexi-call-shell{margin:0;padding:10px;background:radial-gradient(120% 120% at 0 0,#26394a 0,#101720 64%);height:100vh;overflow:hidden}
+      .hexi-call-shell .hexi-call-card{height:100%;display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid #41556a;border-radius:16px;background:linear-gradient(145deg,rgba(25,39,52,.98),rgba(15,22,31,.98));box-shadow:0 12px 36px #0008}.hexi-call-shell .hexi-call-controls{margin-top:auto;order:3}.hexi-call-shell .hexi-call-transcript{order:2}
+      .hexi-call-shell .hexi-call-video{position:relative;order:1;flex:1;min-height:180px;border-radius:12px;overflow:hidden;background:radial-gradient(ellipse at 50% 40%,#304657,#0c1520)}.hexi-call-shell .hexi-call-video[hidden]{display:none}.hexi-call-shell .hexi-call-agent-view{height:100%;min-height:200px;display:grid;place-items:center;text-align:center;color:#b9cddd}.hexi-call-shell .hexi-call-agent-view img,.hexi-call-shell .hexi-call-model{width:100%;height:100%;object-fit:contain;min-height:200px}.hexi-call-shell .hexi-call-self-view{position:absolute;right:10px;bottom:10px;width:100px;height:74px;object-fit:cover;border-radius:8px;border:1px solid #80e6d3;transform:scaleX(-1)}.hexi-call-shell .hexi-call-video-name{position:absolute;left:10px;bottom:10px;padding:4px 7px;border-radius:6px;background:#07121bd9;font-size:12px}
+      .hexi-call-shell .hexi-call-video-tools{position:absolute;right:8px;top:8px;display:flex;gap:5px}.hexi-call-shell .hexi-call-video-tools select,.hexi-call-shell .hexi-call-video-tools button{font:inherit;font-size:12px;color:#eef7ff;background:#102233e8;border:1px solid #425b70;border-radius:7px;padding:5px}.hexi-call-shell .hexi-call-video-tools select[hidden]{display:none}.hexi-call-shell .hexi-call-video[data-speaking="true"]{box-shadow:inset 0 0 0 2px #80e6d3}
+      .hexi-call-shell .hexi-call-head{display:flex;align-items:center;gap:10px;min-width:0}.hexi-call-shell .hexi-call-avatar{width:38px;height:38px;display:grid;place-items:center;flex:0 0 auto;border-radius:50%;background:linear-gradient(145deg,#80e6d3,#7874db);color:#081611;font-weight:800}
+      .hexi-call-shell .hexi-call-identity{min-width:0;flex:1}.hexi-call-shell .hexi-call-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:15px;font-weight:750}.hexi-call-shell .hexi-call-status{color:#a6b6c9;font-size:12px}.hexi-call-shell .hexi-call-time{font-variant-numeric:tabular-nums;color:#c6d3df}
+      .hexi-call-shell .hexi-call-controls{display:flex;align-items:center;gap:8px}.hexi-call-shell .hexi-call-controls button{min-height:38px;flex:1;border:1px solid #455b70;border-radius:10px;background:#1a2b3a;color:#f4f7fb;font:inherit;font-weight:700;cursor:pointer}.hexi-call-shell .hexi-call-controls button:focus-visible{outline:2px solid #80e6d3;outline-offset:2px}.hexi-call-shell .hexi-call-controls button:disabled{opacity:.48;cursor:not-allowed}.hexi-call-shell .hexi-call-end{background:#8f2739!important;border-color:#bd5264!important}.hexi-call-shell .hexi-call-transcript{max-height:168px;overflow:auto;border-top:1px solid #35485a;padding-top:6px}.hexi-call-shell .hexi-call-line{margin:0 0 7px;color:#dce7f1;white-space:pre-wrap;overflow-wrap:anywhere}.hexi-call-shell .hexi-call-line.is-partial{color:#9fb0c1;font-style:italic}.hexi-call-shell .hexi-call-empty{margin:4px 0;color:#91a0b0;font-size:12px}
+
+/* Keep controls reachable even if the browser retains a smaller PiP size. */
+.hexi-portrait-avatar{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+body.hexi-call-shell{overflow:auto}.hexi-call-shell .hexi-call-card{height:auto;min-height:100%}.hexi-call-shell .hexi-call-video{height:clamp(100px,45vh,300px);min-height:100px;flex:none}.hexi-call-shell .hexi-call-agent-view,.hexi-call-shell .hexi-call-model{min-height:100px}.hexi-call-shell .hexi-call-controls{flex-wrap:wrap}
+.hexi-call-participants { display: grid; gap: 7px; padding: 8px; max-height: 190px; overflow: auto; grid-column: 1 / -1; }
+.hexi-call-participants[hidden] { display: none; }
+.hexi-call-participant { display: flex; align-items: center; gap: 9px; padding: 5px; background: #ffffff08; border-radius: 8px; font-size: 12px; }
+.hexi-call-participant img { width: 34px; height: 34px; object-fit: cover; border-radius: 50%; }
+.hexi-call-participant .hexi-call-participant-picture { flex: 0 0 34px; width: 34px; height: 34px; }
+.hexi-call-participant-picture canvas { width: 34px; height: 34px; object-fit: cover; border-radius: 50%; }
+.hexi-call-participant span { flex: 1; min-width: 0; }
+.hexi-call-participant button { border: 1px solid #ffffff30; background: #ffffff12; color: inherit; border-radius: 6px; padding: 6px 10px; }
+.hexi-call-participant button:disabled { opacity: .5; }
+.hexi-call-shell .hexi-call-participants { order: 2; flex: 0 1 auto; min-height: 0; }
+.hexi-call-shell .hexi-call-transcript { order: 3; min-height: 0; }
+.hexi-call-shell .hexi-call-controls { order: 4; flex-shrink: 0; position: sticky; bottom: 0; background: #14212d; }
+.hexi-call-shell .hexi-call-head { flex-shrink: 0; }

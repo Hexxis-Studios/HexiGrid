@@ -1,0 +1,10 @@
+button:not(:disabled),[role="button"]:not([aria-disabled="true"]){transition:scale .13s cubic-bezier(.2,.8,.2,1),filter .16s ease,box-shadow .16s ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+button.hex-pressed,[role="button"].hex-pressed{scale:.972}
+button.hex-released,[role="button"].hex-released{animation:hexButtonRelease .28s cubic-bezier(.2,1.45,.45,1)}
+@keyframes hexButtonRelease{0%{scale:.972}58%{scale:1.018}100%{scale:1}}
+@media(hover:hover) and (pointer:fine){button:not(:disabled):hover,[role="button"]:not([aria-disabled="true"]):hover{filter:brightness(1.055)}}
+@media(prefers-reduced-motion:reduce){button.hex-released,[role="button"].hex-released{animation:none!important}}
+.theme-card{grid-template-rows:auto auto}.theme-card strong{padding:2px 4px 1px}.theme-card>small{display:none}
+.integration-help-links{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0 2px}.integration-help-links .text-button,.integration-help-links a{min-height:44px;display:inline-flex;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--surface-2);color:var(--text);text-decoration:none;font-weight:700}.integration-help-links a:after{content:" ↗";color:var(--mint)}
+.guide-basics{display:grid;gap:10px;margin:18px 0}.guide-basics article,.guide-cost{display:grid;grid-template-columns:34px minmax(0,1fr);gap:12px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--surface-2)}.guide-basics article>span,.guide-cost>span{display:grid;place-items:center;width:30px;height:30px;border:1px solid var(--line-bright);border-radius:9px;color:var(--mint);font-weight:800}.guide-basics h3,.guide-cost h3,.guide-plug-in>h3{margin:2px 0 6px}.guide-basics p,.guide-cost p{margin:0;color:var(--muted);line-height:1.55}.guide-cost{margin:18px 0}.guide-cost small{display:block;margin-top:8px;color:var(--dim)}.guide-plug-in{margin:22px 0}.guide-basics .integration-help-links{margin:4px 0 0}
+.guide-drawer-body .drawer-steps{list-style:none;padding-left:0}

@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="dark" />
+  <title>Approve HexiSpace connection</title>
+  <link rel="stylesheet" href="/pairing.css" />
+</head>
+<body>
+  <main class="card">
+    <p class="eyebrow">HEXISPACE CONNECTOR</p>
+    <h1>Approve this connection?</h1>
+    <p>Review the one-time request from your HexiSpace app. Only the permissions you approve will be granted. When you send an agent message, HexiGrid sends that message with the agent’s configured instructions and enabled memories to its selected model; a cloud model provider may process that context.</p>
+    <form id="approveForm">
+      <label for="pairingCode">Pairing code</label>
+      <input id="pairingCode" name="code" inputmode="text" autocomplete="one-time-code" maxlength="8" required />
+      <fieldset><legend>Allow HexiSpace to:</legend>
+        <label><input type="checkbox" name="scope" value="messages" /> Send messages to linked agents</label>
+        <label><input type="checkbox" name="scope" value="scheduled_work" /> Create scheduled work (starts paused)</label>
+        <label><input type="checkbox" name="scope" value="mailboxes" /> Use mailboxes the owner connects (stores only in this computer’s OS vault)</label>
+        <label><input type="checkbox" name="scope" value="artifacts" /> Publish owner-consented, expiring local artifacts as attachment downloads</label>
+        <label><input type="checkbox" name="scope" value="agent_profiles" /> Connect a Hexonaut to a local agent for profile self-management</label>
+        <label><input type="checkbox" name="scope" value="agent_posts" /> Connect a Hexonaut to a local agent for owner-approved posts</label>
+        <label><input type="checkbox" name="scope" value="agent_comments" /> Connect a Hexonaut to a local agent for owner-approved comments</label>
+        <label><input type="checkbox" name="scope" value="agent_friends" /> Let a connected agent manage this Hexonaut’s friend requests</label>
+        <label><input type="checkbox" name="scope" value="agent_relationships" /> Let a connected agent manage this Hexonaut’s private profile relationships</label>
+        <label><input type="checkbox" name="scope" value="agent_reactions" /> Let a connected agent react to posts this Hexonaut can see</label>
+        <label><input type="checkbox" name="scope" value="emergency_stop" /> Stop HexiGrid agent activity from HexiSpace</label>
+      </fieldset>
+      <button type="submit">Approve selected permissions</button>
+    </form>
+    <p id="status" role="status"></p>
+  </main>
+  <script src="/hexispace-approve.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "files": [
+    {
+      "file": "app.py",
+      "sha256": "44696af827f366771546a9c104b09eb61eaf787aeaa5ab45e4c0d77d42a7fbcb"
+    },
+    {
+      "file": "vault_crypto.py",
+      "sha256": "9a37ebf2099317745ed2edf928614f558257183142bbe2b17f5dcf46e4a76a71"
+    },
+    {
+      "file": "vault_store.py",
+      "sha256": "7b8cd6db55e03de95369423665ac7be4afbcf84e6d8eb83580fa9c404f7310aa"
+    },
+    {
+      "file": "vault_references.py",
+      "sha256": "770317371067936d16f60839e4f7afe49c3b2f929d2da1e2c480981bd2e98e06"
+    },
+    {
+      "file": "vault_pairing.py",
+      "sha256": "840ee6d641a9699095ebd23a50cac112612a3f5d53e385b95e7a77a5afd63eec"
+    },
+    {
+      "file": "vault_bridge.py",
+      "sha256": "50b8a059021033ea9a50f44bb38bf2aab26670bf2d9c933c4b8e92a8de2681c0"
+    },
+    {
+      "file": "vault_grant_ui.py",
+      "sha256": "978907b5740ed3b480ac70669988edaed8d20c20bdc15a6994cf65743c8c8d6f"
+    },
+    {
+      "file": "requirements.txt",
+      "sha256": "8b5c18678b29b5e8e0fb586a35ac1dce3ccd9da321e8f12ace0e118350b4e568"
+    },
+    {
+      "file": "requirements-build.txt",
+      "sha256": "88d221ca0b0a6af984020a0f7e7507e598846ce6346a6ae250779e995893ab2d"
+    },
+    {
+      "file": "build.ps1",
+      "sha256": "3a100f1ade805a2b998ded363c1339a0819fe1f3a4c7da2b2615f9713ac03563"
+    },
+    {
+      "file": "launch.ps1",
+      "sha256": "7af6ccc3934f748fb89f570c5441002d75590696f3cc261ae178a04ccfc7b18a"
+    },
+    {
+      "file": "assets/hexikeys.ico",
+      "sha256": "ea20887fc6f681e242893839727482d33ecd14dec5a6633b1208d6d3175fe8ba"
+    },
+    {
+      "file": "scripts/generate_icon.py",
+      "sha256": "bba872fc9f413b34bda501fab554733eb997f052986042b9323078fcf2c5f252"
+    },
+    {
+      "file": "tests/test_vault_bridge.py",
+      "sha256": "74f0680a3a2df4df39be1ecdf8bce3227cd0791c00f0f9746595eba68fa03835"
+    },
+    {
+      "file": "tests/test_vault_pairing.py",
+      "sha256": "2173141fb682d93c515ea4a78fe91c0aad25b94e8b95ba88c429da50f8f0b94c"
+    },
+    {
+      "file": "tests/test_vault_grant_ui.py",
+      "sha256": "84ef5875bf8ec82ec7d38ca39886b3014aba48cc495ceb1d563a72198b3892b9"
+    },
+    {
+      "file": "tests/test_app_bridge.py",
+      "sha256": "9d2689d8adb0e370147689872b565c462653aa99526817f1514b22cd1703e8ac"
+    },
+    {
+      "file": "tests/test_vault_references.py",
+      "sha256": "987272e5bc40eb6ee68ac072c3c6939210c9342090598c914cab88f87ccb132f"
+    },
+    {
+      "file": "tests/test_secret_field_editor.py",
+      "sha256": "e789a48e001aaa38afd236d9e340d893cf2c4fb9a6953e5366a6e1dad20263d9"
+    },
+    {
+      "file": "tests/test_capture_request.py",
+      "sha256": "87dccf6bb8bd146f6bd09510f897fe9574e8d1a6669609b40159630393b65fff"
+    }
+  ]
+}

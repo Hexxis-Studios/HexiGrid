@@ -1,0 +1,8 @@
+# Preserve the exact pinned decoder bytes on Windows checkouts.
+public/vendor/draco/** -text
+public/vendor/basis/** -text
+test/fixtures/ktx2/*.ktx2 -text
+public/vendor/vrm-viewer.js whitespace=-blank-at-eol,-blank-at-eof,-space-before-tab
+
+# Preserve verbatim dependency notices, including upstream whitespace.
+integrations/hexikeys/notices/** -text whitespace=-blank-at-eol,-blank-at-eof
