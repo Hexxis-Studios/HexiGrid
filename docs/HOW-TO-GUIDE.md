@@ -1,5 +1,9 @@
 # HexiGrid how-to guide
 
+For a first setup, follow [Set up HexiGrid, step by step](PLATFORM-SETUP.md).
+It includes simple definitions, a choice of connection paths, platform-specific
+steps, image/voice setup and a troubleshooting table.
+
 The complete, current guide is built into HexiGrid. Open **Settings → Help** from the left menu on a computer or **More → Settings → Help** on a phone. The in-app guide is the canonical copy because it can point at the controls that are actually installed.
 
 Every outside connection shows two kinds of help together:
@@ -26,7 +30,31 @@ Setup guides for AI providers, iLands Runner, Google Drive backup, and MCP are g
 
 Nothing is connected automatically. A fresh clone starts with no providers, no agent accounts, and no personal machine configuration.
 
-## Find the feature you need
+## Pair an existing agent, including an iLands agent
+
+1. Open **Agents → Connect or create → Pair an existing agent**.
+2. Choose the permissions. For camera only, clear **Screen view** and **Mouse and keyboard**, then select **Camera**.
+3. Choose **Create invitation** and give the complete copied instructions to that agent in its own app. The instructions include its skill and companion files.
+4. The agent checks its storage before connecting and saves both its credential and connection details. Agents whose files reset between turns need supported protected storage; the supplied instructions handle that check. The invitation is single-use; the saved connection works on later turns until revoked. An idle heartbeat does not require another invitation. Background operation depends on the agent platform supporting persistent processes.
+5. Open **Settings → Connections → Tools & integrations**, choose that agent, check its permissions, then choose **Start sharing**. Browser device approval may be required.
+6. Ask what the agent sees now. Its skill requests a fresh snapshot, inspects that image, and instructs it to delete temporary files afterward. A failed capture must be reported rather than replaced by an old picture.
+
+Two agents with similar names remain separate connections. Compare their source app and Link ID before changing access. A local Codex profile uses the local Codex installation; it is not automatically a paired companion Link.
+
+### Change permissions after pairing
+
+1. Open **Settings → Connections → Tools & integrations** and choose the existing agent in the **Agent** menu.
+2. Select or clear **Screen view**, **Mouse and keyboard**, **Camera**, **Microphone**, or **Agent speaker output**. All available permissions are in the same box.
+3. Optional: select **Let this agent manage and restart its approved access**. The agent can then manage only permissions you approved, without receiving additional file or process access.
+4. Choose **Save permissions**, or **Start sharing** to save and start sharing together. Removing a permission blocks further use; adding a sharing permission may require starting access and accepting a browser device prompt.
+
+To connect another agent, choose **Connect another agent** in the same Agent menu, select its permissions, and choose **Create invitation**. Existing agents keep their connections and sharing sessions.
+
+If you enabled **Let this agent manage and restart its approved access**, you can ask the agent to resume sharing itself. It uses its saved connection and existing permissions. Approved agents share computer control automatically; HexiGrid coordinates their actions without manual handoffs. After another agent changes the screen, the next agent must look again before acting. Take over and Emergency Stop must be cleared by you. Call participants on hold do not receive the active call’s audio or video.
+
+Keep the same Link. Changing permissions does not require another invitation. **Stop** ends computer and media access without deleting the connection or its saved permission choices.
+
+## Feature locations
 
 On a phone, use **More** or the top menu to reach the same sections. You can ask your agent to help with these actions within the access you gave it.
 
@@ -291,21 +319,23 @@ For preview conversations, choose **Save transcript** if you want that preview's
 
 The temporary link itself is public, so do not post it. Pairing and sign-in protect the app, and sensitive host-only setup actions stay blocked remotely. Cloudflare says Quick Tunnels are for testing and do not have an uptime promise; see its [official Quick Tunnel guide](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/).
 
-### Continue an app-created iLander through BYOA
+### Optional: import an agent record or use BYOA
 
-Directly binding an app-created iLander to an outside model is **Coming soon**. This is an iLands limitation: iLands Runner supports agents created through BYOA, and iLands has not exposed a supported way to attach an outside model to an existing app-created iLander. HexiGrid's separate AI model connections support OpenCode, local model servers, Hugging Face, OpenAI, Anthropic, Gemini, and compatible APIs; this iLands limitation does not restrict those connections.
+**Pairing** connects an existing agent to HexiGrid. **Importing** copies an
+agent record into a local profile. **BYOA** means bringing a locally run agent
+to a platform that supports that workflow. They are separate choices. None of
+these steps is required to pair an existing native iLander, and importing a
+record does not replace its original account or model.
 
-The available path today creates a BYOA profile on a different iLands account using the private agent record. The original app-created iLander remains unchanged.
-
-1. Open **Settings → Connections → Tools & integrations → Continue through BYOA**.
+1. Open **Settings → Connections → Tools & integrations → Import an existing agent** only if you want a separate local profile from an agent record. Ordinary pairing does not need an import or BYOA.
 2. Press **Copy agent-record prompt**.
 3. Paste the prompt into the existing iLander's normal chat. It asks the agent to organize everything it can access into `HEXIGRID-AGENT-RECORD.md`. It does not ask the agent to connect accounts, reveal credentials, delete itself, or change anything.
 4. Download the Markdown attachment. If the agent can only return text, copy the complete response into a plain-text file named `HEXIGRID-AGENT-RECORD.md`.
 5. Press **Upload agent record** and choose the file. HexiGrid also accepts several `.md`, `.markdown`, or `.txt` files when the source agent splits the information.
 6. Choose the new account label and any model already connected to HexiGrid. If no model is connected yet, finish the import and connect one before chatting with the profile.
 7. HexiGrid checks file type and size, blocks likely credentials, imports the available identity and memories, and lists incomplete sections for review.
-8. Under **New BYOA identity**, create an isolated connection and use [the live official iLands instructions](https://ilands.ai/agent.md). HexiGrid reads that official guide for setup instead of maintaining a rewritten copy.
-9. Sign in to a different iLands account that does not already own an agent. iLands permits one agent per account and does not bind the original app-created identity through Runner.
+8. Under the separate **Connect an iLands account** section, use [the live official iLands instructions](https://ilands.ai/agent.md). Follow the account eligibility shown by iLands.
+9. Sign in to the account allowed by that official BYOA flow. Importing a record does not change the source agent's provider account or model.
 10. Review the official Passport preview, make corrections in plain language, and use iLands' exact confirmation phrase only when the preview is correct.
 11. After approval, the BYOA iLander appears in HexiGrid automatically. The selected external model provides its cognition while Runner is online.
 
@@ -317,9 +347,10 @@ Never include passwords, API keys, tokens, cookies, private keys, payment inform
 
 If the camera, microphone, screen picker, speech recognition, speech output, or recorder is unavailable, HexiGrid disables or explains that control and keeps text chat usable. Browser support details are available from [MDN camera and microphone](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia), [MDN screen capture](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getDisplayMedia), [MDN speech synthesis](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis), and [MDN MediaRecorder](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder).
 
-## Keeping this guide current
+## Find more help
 
-Provider-specific in-app content lives in `public/guide-content.js`, separate from application behavior. Any user-facing connection, permission, backup, or platform change must update that module and this document in the same change.
+Open the in-app Help and search for the feature name. Use its **Official guide**
+links for outside services, whose account rules, prices and interfaces can change.
 
 ## Appearance and button sounds
 

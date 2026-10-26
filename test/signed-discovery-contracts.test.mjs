@@ -30,8 +30,9 @@ test('signed discovery catalog describes exact Codex, harness, and continuity co
   const codex = actions.signedCodexDirectory;
   assert.equal(codex.authentication, 'signed Link');
   assert.deepEqual(codex.requiredCapabilities, ['messages']);
-  assert.equal(codex.requiredTrustLevel, 'owner');
-  assert.equal(codex.requiredCondition, 'codexRelayNamedTargetAllowed');
+  assert.equal(codex.requiredTrustLevel, undefined);
+  assert.equal(codex.createChat.requiredTrustLevel, 'owner');
+  assert.equal(codex.requiredCondition, 'codexRelayConfigured');
   assert.equal(codex.directory.chats.method, 'GET');
   assert.equal(codex.directory.chats.path, '/agent-link/v1/codex/chats');
   assert.equal(codex.directory.projects.path, '/agent-link/v1/codex/projects');
@@ -83,11 +84,11 @@ test('orientation hides signed discovery unless grants and declared conditions m
     id: 'link-local-test', agentId: 'agent-local-test', identity: { name: 'Test Link' },
     status: 'connected', capabilities: ['messages', 'harness-jobs', 'continuity-export']
   };
-  const settings = { codexRelay: { enabled: true, linkId: base.id, allowNamedThreads: true } };
+  const settings = { codexRelay: { enabled: true, linkId: base.id, threadId: 'thread-approved-123', allowNamedThreads: true } };
   const owner = agentLinkOrientation({ ...base, trustLevel: 'owner' }, settings);
   const methods = (capability) => owner.available.find((item) => item.capability === capability)?.methods || [];
   assert.deepEqual(methods('messages').map(({ path }) => path), [
-    '/agent-link/v1/avatar/portrait', '/agent-link/v1/codex/chats', '/agent-link/v1/codex/projects', '/agent-link/v1/codex/chats'
+    '/agent-link/v1/avatar/portrait', '/agent-link/v1/codex/deliveries', '/agent-link/v1/codex/chats', '/agent-link/v1/codex/projects', '/agent-link/v1/codex/chats'
   ]);
   assert.deepEqual(methods('harness-jobs').map(({ path }) => path), [
     '/agent-link/v1/harness-jobs', '/agent-link/v1/harness-jobs/{jobId}', '/agent-link/v1/harness-jobs/{jobId}/cancel'
@@ -101,9 +102,9 @@ test('orientation hides signed discovery unless grants and declared conditions m
   const noCapabilities = agentLinkOrientation({ ...base, trustLevel: 'owner', capabilities: [] }, settings);
   assert.deepEqual(noCapabilities.available, []);
   const wrongRelay = agentLinkOrientation({ ...base, trustLevel: 'owner' }, { codexRelay: { ...settings.codexRelay, linkId: 'other-link' } });
-  assert.equal(wrongRelay.available.find((item) => item.capability === 'messages')?.methods?.some(method => method.path.startsWith('/agent-link/v1/codex/')) || false, false);
+  assert.equal(wrongRelay.available.find((item) => item.capability === 'messages')?.methods?.some(method => method.path === '/agent-link/v1/codex/chats') || false, false);
   const scoped = agentLinkOrientation({ ...base, trustLevel: 'scoped' }, settings);
-  assert.equal(scoped.available.find((item) => item.capability === 'messages')?.methods?.some(method => method.path.startsWith('/agent-link/v1/codex/')) || false, false);
+  assert.deepEqual(scoped.available.find(item => item.capability === 'messages').methods.filter(method => method.path.startsWith('/agent-link/v1/codex/')).map(method => [method.method, method.path]), [['GET', '/agent-link/v1/codex/deliveries'], ['GET', '/agent-link/v1/codex/chats']]);
 
   const exposed = JSON.stringify({ owner, catalog: agentInterfaceManifest().actions.signedCodexDirectory,
     harness: agentInterfaceManifest().actions.signedHarnessJobs, continuity: agentInterfaceManifest().actions.signedContinuityTransfer });

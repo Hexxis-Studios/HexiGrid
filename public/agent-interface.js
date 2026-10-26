@@ -31,6 +31,8 @@
   const codexDeliveryReview = window.HexiGridCodexDeliveries.attach(document.querySelector('#agentCodexDeliveries'), { request, refresh: start });
   let latestManifest = null;
   let latestState = null;
+  let codexRelaySelection = '';
+  let codexConversationChoices = [];
   let desktopFrameTimer = null;
   let desktopFrameBusy = false;
   let desktopBridgeSelection = '';
@@ -100,7 +102,7 @@
   }
 
   function connectedLinks(state) {
-    return (state.agentLinks || []).filter((link) => (link.authorizationStatus || link.status) === 'connected');
+    return window.HexiGridViewRenderers.currentAgentLinks(state);
   }
 
   function linkLabel(link) {
@@ -251,7 +253,7 @@
     if (select && linkPermissionEditBusy) select.disabled = true;
     const doorScopes = linkPermissions.slice(0, 8).map(([scope]) => scope);
     const selectedScopes = selectedLink?.capabilities || [];
-    const ownerGrantedScopes = selectedLink?.trustLevel === 'owner' ? (selectedLink.selfManageableCapabilities || selectedScopes) : selectedScopes;
+    const ownerGrantedScopes = selectedLink?.grantedCapabilities || selectedScopes;
     const permissions = document.querySelector('#desktopLinkPermissions');
     if (permissions) permissions.innerHTML = linkPermissions.map(([scope, label]) => `<label><input type="checkbox" data-link-permission="${scope}" ${(linkPermissionEditBusy && scope === linkPermissionEditScope ? linkPermissionEditChecked : ownerGrantedScopes.includes(scope)) ? 'checked' : ''} ${linkPermissionEditBusy || !selectedLink || (scope.startsWith('owner-') || scope === 'desktop-system-keys') && selectedLink.trustLevel !== 'owner' ? 'disabled' : ''} /> ${escape(label)}${ownerGrantedScopes.includes(scope) && !selectedScopes.includes(scope) ? ' (paused by agent)' : ''}</label>`).join('');
     const grantDoor = document.querySelector('#desktopBridgeGrant');
@@ -282,12 +284,12 @@
     }
     const selectedLink = connectedLinks(state).find((link) => link.id === (select?.value || bridge.linkId));
     renderSpeechSettings(selectedLink);
-    const bridgeLive = bridge.enabled && selectedLink?.status === 'online';
+    const bridgeLive = bridge.enabled && bridge.linkId === selectedLink?.id;
     const selectedScopes = selectedLink?.capabilities || [];
     renderLinkPermissionControls(state, select, selectedLink);
     const startButton = document.querySelector('#desktopBridgeForm button[type="submit"]');
-    if (startButton) { startButton.disabled = selectedLink?.status !== 'online'; startButton.title = selectedLink?.status === 'online' ? '' : 'A current agent heartbeat is required to start a new session. Ask the agent to send one, then refresh the workspace.'; }
-    const view = document.querySelector('#desktopBridgeView'); if (view) view.checked = bridge.enabled ? bridge.viewGranted === true : true;
+    if (startButton) { startButton.disabled = !selectedScopes.some(scope => ['desktop-view', 'camera-view', 'microphone-listen', 'speaker-output'].includes(scope)); startButton.title = startButton.disabled ? 'Choose a paired agent with a screen or media permission.' : ''; }
+    const view = document.querySelector('#desktopBridgeView'); if (view) { view.checked = bridgeLive ? bridge.viewGranted === true : selectedScopes.includes('desktop-view'); view.disabled = !selectedScopes.includes('desktop-view'); }
     const control = document.querySelector('#desktopBridgeControl'); if (control) control.checked = bridge.controlGranted === true;
     const text = document.querySelector('#desktopBridgeText'); if (text) text.checked = bridge.textGranted === true;
     if (bridge.enabled) {
@@ -304,7 +306,7 @@
       renderSpeakerState(active);
     }
     const preview = document.querySelector('#desktopBridgePreview'); if (preview) preview.hidden = !bridgeLive || !bridge.viewGranted || !selectedScopes.includes('desktop-view');
-    const status = document.querySelector('#desktopBridgeStatus'); if (status) status.textContent = bridge.enabled && !bridgeLive ? 'The selected owner connection is offline. Computer access is paused.' : bridgeLive ? (bridge.agentControlActive ? 'Agent control is active' : 'The owner has control') : (bridge.message || 'Computer access is off.');
+    const status = document.querySelector('#desktopBridgeStatus'); if (status) status.textContent = bridge.enabled && !bridgeLive ? 'Another agent has the current session. Start access to switch to the selected agent.' : bridgeLive ? (bridge.agentControlActive ? 'Agent control is active' : 'Selected sharing permissions are active') : (bridge.message || 'Computer access is off.');
     const stop = document.querySelector('#desktopBridgeStop'); if (stop) stop.disabled = !bridge.enabled;
     const takeover = document.querySelector('#desktopBridgeTakeover'); if (takeover) takeover.disabled = !bridgeLive || !bridge.agentControlActive;
     const resume = document.querySelector('#desktopBridgeResume'); if (resume) resume.disabled = !bridgeLive || !bridge.controlGranted || bridge.agentControlActive;
@@ -350,6 +352,48 @@
     document.querySelector('#agentUsageJson').textContent = JSON.stringify(report, null, 2);
   }
 
+  function renderCodexRelaySettings(state) {
+    const relay = state.settings.codexRelay || {};
+    const links = connectedLinks(state);
+    const selected = links.some(link => link.id === codexRelaySelection) ? codexRelaySelection : links.some(link => link.id === relay.linkId) ? relay.linkId : links[0]?.id || '';
+    codexRelaySelection = selected;
+    const route = relay.linkId === selected ? relay : (relay.routes || []).find(item => item.linkId === selected) || {};
+    const linkSelect = document.querySelector('#codexRelayLink');
+    if (linkSelect) {
+      linkSelect.innerHTML = `<option value="">Choose an agent</option>${links.map(link => `<option value="${escape(link.id)}">${escape(linkLabel(link))}</option>`).join('')}`;
+      linkSelect.value = selected;
+    }
+    const threadInput = document.querySelector('#codexRelayThread'); if (threadInput) threadInput.value = route.threadId || '';
+    const approvedSelect = document.querySelector('#codexApprovedChats');
+    if (approvedSelect) {
+      const saved = [{ threadId: route.threadId, title: route.threadTitle || route.threadId }, ...(route.approvedChats || [])].filter(chat => chat.threadId);
+      const choices = [...new Map([...saved.map(chat => ({ id: chat.threadId, title: chat.title })), ...codexConversationChoices].map(chat => [chat.id, chat])).values()];
+      approvedSelect.innerHTML = choices.map(chat => `<label><input type="checkbox" value="${escape(chat.id)}" data-chat-title="${escape(chat.title)}" ${chat.id === route.threadId ? 'disabled title="Default conversation"' : ''} ${saved.some(item => item.threadId === chat.id) ? 'checked' : ''} /> ${escape(chat.title)}</label>`).join('');
+      if (threadInput) { threadInput.innerHTML = `<option value="">Choose a conversation</option>${choices.map(chat => `<option value="${escape(chat.id)}">${escape(chat.title)}</option>`).join('')}`; threadInput.value = route.threadId || ''; }
+    }
+    const repliesInput = document.querySelector('#codexRelayReplies'); if (repliesInput) repliesInput.checked = route.forwardReplies !== false;
+    const namedInput = document.querySelector('#codexRelayNamedThreads');
+    if (namedInput) { namedInput.checked = route.allowNamedThreads === true; namedInput.disabled = links.find(link => link.id === selected)?.trustLevel !== 'owner'; }
+    const enabledInput = document.querySelector('#codexRelayEnabled'); if (enabledInput) enabledInput.checked = route.enabled === true;
+    const feedback = document.querySelector('#codexRelayFeedback'); if (feedback) feedback.textContent = route.enabled ? 'Messages enabled for this agent.' : 'Messages disabled for this agent.';
+  }
+
+  document.querySelector('#loadCodexConversations')?.addEventListener('click', async event => {
+    const feedback = document.querySelector('#codexRelayFeedback'); event.target.disabled = true;
+    try {
+      const result = await request('/api/codex-chats?linkId=' + encodeURIComponent(codexRelaySelection));
+      codexConversationChoices = result.chats || [];
+      renderCodexRelaySettings(latestState);
+      feedback.textContent = 'Choose the conversations this agent may message, then save.';
+    } catch (error) { feedback.textContent = error.message; }
+    finally { event.target.disabled = false; }
+  });
+
+  document.querySelector('#codexRelayLink')?.addEventListener('change', event => {
+    codexRelaySelection = event.target.value;
+    if (latestState) renderCodexRelaySettings(latestState);
+  });
+
   function render(manifest, state) {
     document.querySelector('#memory-recall').hidden = false;
     latestManifest = manifest;
@@ -367,17 +411,7 @@
     document.querySelector('#agentStatus').innerHTML = `<h2>Workspace connected</h2><dl class="workspace-snapshot"><div><dt>Session</dt><dd>${state.security?.standaloneBrowser ? 'Browser vault' : 'Signed-in owner'}</dd></div><div><dt>Agent Links</dt><dd>${links.length} paired · ${online} online</dd></div><div><dt>Computer session</dt><dd>${escape(sessionLabel)}</dd></div><div><dt>Work mode</dt><dd><code>${escape(state.settings.workMode)}</code></dd></div></dl><small>Checked ${escape(checkedAt)} · use Refresh workspace for current status. A paired Link can make signed requests while its heartbeat is idle; live access still depends on current grants, policy and session switches.</small>${activeLink ? `<p class="connection-contact">${escape(presence.detail)}</p>` : ''}<small>Interface ${escape(manifest.schemaVersion)} · app ${escape(manifest.appVersion)}.</small>`;
     document.querySelector('#agentRules').innerHTML = manifest.operatingRules.map((rule) => `<li>${escape(rule)}</li>`).join('');
     document.querySelector('#agentPolicy').innerHTML = `<div><dt>Work mode</dt><dd><code>${escape(state.settings.workMode)}</code></dd></div><div><dt>Approval profile</dt><dd><code>${escape(state.settings.approvalPolicy)}</code></dd></div><div><dt>Default model</dt><dd><code>${escape(state.settings.model || 'not-configured')}</code></dd></div><div><dt>Secret values exposed</dt><dd>No</dd></div>`;
-    const relay = state.settings.codexRelay || {};
-    const linkSelect = document.querySelector('#codexRelayLink');
-    if (linkSelect) {
-      linkSelect.innerHTML = `<option value="">Choose a connected link</option>${connectedLinks(state).map((link) => `<option value="${escape(link.id)}">${escape(linkLabel(link))}</option>`).join('')}`;
-      linkSelect.value = relay.linkId || '';
-    }
-    const threadInput = document.querySelector('#codexRelayThread'); if (threadInput) threadInput.value = relay.threadId || '';
-    const repliesInput = document.querySelector('#codexRelayReplies'); if (repliesInput) repliesInput.checked = relay.forwardReplies !== false;
-    const namedInput = document.querySelector('#codexRelayNamedThreads'); if (namedInput) namedInput.checked = relay.allowNamedThreads === true;
-    const enabledInput = document.querySelector('#codexRelayEnabled'); if (enabledInput) enabledInput.checked = relay.enabled === true;
-    const relayFeedback = document.querySelector('#codexRelayFeedback'); if (relayFeedback) relayFeedback.textContent = relay.enabled ? 'Enabled for the selected link and thread.' : 'Disabled.';
+    renderCodexRelaySettings(state);
     renderDesktopBridge(state);
     document.querySelector('#agentProviders').innerHTML = records(state.providers || [], (provider) => `<article class="record" data-provider-id="${escape(provider.id)}"><strong>${escape(provider.name)}</strong><small>${escape(provider.kind || (provider.local ? 'local' : 'cloud'))} · ${provider.modelIds?.length || 0} models · ${provider.hasKey ? 'key configured' : providerNeedsKey(provider) ? 'key required before chat' : 'no key required'}</small></article>`);
     document.querySelector('#agentRoster').innerHTML = records(window.HexiGridViewRenderers.orderAgents(state.agents || [], state.agentLinks || []), (agent) => `<article class="record" data-agent-id="${escape(agent.id)}"><strong>${escape(agentLabel(agent, state.agents || []))}</strong><small>model <code>${escape(rosterModel(agent, state))}</code> · ${escape(rosterStanding(agent, state))}</small></article>`);
@@ -476,17 +510,19 @@
     const button = codexRelayForm.querySelector('button[type="submit"]');
     button.disabled = true; feedback.textContent = 'Saving locally…';
     try {
+      const threadId = document.querySelector('#codexManualThread').value.trim() || document.querySelector('#codexRelayThread').value;
       const body = { codexRelay: {
         enabled: document.querySelector('#codexRelayEnabled').checked,
         linkId: document.querySelector('#codexRelayLink').value,
-        threadId: document.querySelector('#codexRelayThread').value.trim(),
+        threadId,
+        threadTitle: codexConversationChoices.find(chat => chat.id === threadId)?.title || '',
+        approvedChats: Array.from(document.querySelectorAll('#codexApprovedChats input:checked')).map(option => ({ threadId: option.value, title: option.dataset.chatTitle })),
         forwardReplies: document.querySelector('#codexRelayReplies').checked,
         allowNamedThreads: document.querySelector('#codexRelayNamedThreads').checked
       } };
       const result = await request('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
       latestState = { ...latestState, settings: result.settings };
       render(latestManifest, latestState);
-      feedback.textContent = result.settings.codexRelay?.enabled ? 'Enabled.' : 'Disabled.';
     } catch (error) { feedback.textContent = error.message; }
     finally { button.disabled = false; }
   });
@@ -598,7 +634,7 @@
     const link = connectedLinks(latestState || {}).find((item) => item.id === linkId);
     if (!link) { feedback.textContent = 'Choose the exact connected agent link first.'; return; }
     const doorScopes = linkPermissions.slice(0, 8).map(([scope]) => scope);
-    const grants = link.trustLevel === 'owner' ? (link.selfManageableCapabilities || link.capabilities || []) : (link.capabilities || []);
+    const grants = link.grantedCapabilities || link.capabilities || [];
     const capabilities = grant
       ? [...new Set([...grants, ...doorScopes])]
       : grants.filter((scope) => !doorScopes.includes(scope));
@@ -642,7 +678,7 @@
     if (!linkPermissions.some(([item]) => item === scope)) return;
     const linkId = linkPermissionEditBusy ? linkPermissionEditLinkId : document.querySelector('#desktopBridgeLink')?.value;
     const link = connectedLinks(latestState || {}).find((item) => item.id === linkId);
-    const grants = link?.trustLevel === 'owner' ? (link.selfManageableCapabilities || link.capabilities || []) : (link?.capabilities || []);
+    const grants = link?.grantedCapabilities || link?.capabilities || [];
     if (linkPermissionEditBusy) { input.checked = grants.includes(scope); return; }
     if (!link) return;
     const feedback = document.querySelector('#desktopBridgeFeedback');

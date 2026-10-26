@@ -295,7 +295,7 @@ test('scoped Link capabilities pause, resume, and survive owned-server restart a
     assert.equal((await agentMessage(token, 2)).status, 403, 'the paused messages scope must deny signed messages');
     assert.equal((await tokenReport(token)).status, 201, 'token metering must remain independent while messages are paused');
     const resumed = await ownerSetCapabilities(connectionId, capabilities);
-    assert.deepEqual(resumed.capabilities, capabilities);
+    assert.deepEqual(new Set(resumed.capabilities), new Set(capabilities));
     const recoveredMessage = await agentMessage(token, 3);
     assert.equal(recoveredMessage.status, 201, 'messages should recover after the owner resumes their scope');
 
@@ -326,7 +326,7 @@ test('scoped Link capabilities pause, resume, and survive owned-server restart a
     assert.equal(resumedByCompanion.status, 200, 'the shipped companion should use the same Link after restart');
     assert.equal(resumedByCompanion.body.connection.id, connectionId);
     assert.equal(resumedByCompanion.body.connection.authorizationStatus, 'connected');
-    assert.deepEqual(resumedByCompanion.body.connection.capabilities, capabilities);
+    assert.deepEqual(new Set(resumedByCompanion.body.connection.capabilities), new Set(capabilities));
     const resumedByToken = await sendSigned(signedSpec(token, '/agent-link/v1/capabilities'));
     assert.equal(resumedByToken.status, 200, 'the exact old signed token should survive the server restart');
     assert.equal(resumedByToken.body.connection.id, connectionId);
@@ -334,7 +334,7 @@ test('scoped Link capabilities pause, resume, and survive owned-server restart a
 
     const afterRestart = await ownerLink(connectionId);
     assert.equal(afterRestart.authorizationStatus, 'connected');
-    assert.deepEqual(afterRestart.capabilities, capabilities);
+    assert.deepEqual(new Set(afterRestart.capabilities), new Set(capabilities));
     assert.equal(afterRestart.messages.length, 2);
     assert.equal(afterRestart.tokenUsage.measurements.length, 3,
       'only accepted usage reports should persist through the owner capability changes and restart');

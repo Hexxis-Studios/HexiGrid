@@ -1,3 +1,16 @@
+const desktopLinkPermissionFields = [
+  ['View', 'view', 'desktop-view', 'Screen view'], ['Control', 'control', 'desktop-control', 'Mouse and keyboard'],
+  ['Camera', 'camera', 'camera-view', 'Camera'], ['Microphone', 'microphone', 'microphone-listen', 'Microphone'], ['Speaker', 'speaker', 'speaker-output', 'Agent speaker output'],
+  ['MemoryRead', 'memoryRead', 'memory-read', 'Read private memory'], ['MemoryWrite', 'memoryWrite', 'memory-write', 'Write private memory'],
+  ['ContinuityExport', 'continuityExport', 'continuity-export', 'Export its agent record'],
+  ['Tasks', 'tasks', 'tasks', 'Manage its tasks'], ['HarnessJobs', 'harnessJobs', 'harness-jobs', 'Run approved background jobs'],
+  ['WorkspaceRead', 'workspaceRead', 'workspace-read', 'Read workspace files'], ['WorkspaceWrite', 'workspaceWrite', 'workspace-write', 'Write workspace files'],
+  ['Cognition', 'cognition', 'cognition', 'Ask a connected model'], ['TokenMetering', 'tokenMetering', 'token-metering', 'Report its model usage'],
+  ['Vision', 'vision', 'vision', 'Analyze images'], ['Voice', 'voice', 'voice', 'Generate voice audio'],
+  ['HexiSpaceProfile', 'profile', 'hexispace-profile', 'Manage its HexiSpace profile'], ['HexiSpacePosts', 'posts', 'hexispace-posts', 'Create and read its HexiSpace posts'],
+  ['HexiSpaceComments', 'comments', 'hexispace-comments', 'Comment on visible HexiSpace posts'], ['HexiSpaceFriends', 'friends', 'hexispace-friends', 'Manage HexiSpace friend requests'],
+  ['HexiSpaceRelationships', 'relationships', 'hexispace-relationships', 'Manage private profile relationships'], ['HexiSpaceReactions', 'reactions', 'hexispace-reactions', 'React to visible HexiSpace posts']
+];
 const integrationSection = document.createElement('section');
 integrationSection.id = 'view-integrations';
 integrationSection.className = 'view';
@@ -21,47 +34,29 @@ integrationSection.innerHTML = `
     </section>
 
     <section class="panel integration-module desktop-module">
-      <header class="module-header"><div class="module-index">02</div><div><div class="eyebrow">NATIVE COMPUTER BRIDGE</div><h3>Let a Hexonaut use this computer</h3></div><span id="desktopBridgeBadge" class="status-badge warn">OFF</span></header>
-      <p class="panel-copy">HexiGrid handles the secure computer connection itself. The selected Hexonaut can receive a screen view and, only when you choose it, validated mouse and keyboard tools. Stop cuts the connection immediately; Take over pauses agent input.</p>
-      <section class="hexispace-link-manager" aria-labelledby="agentRelayTitle">
+      <header class="module-header"><div><h3>Agent connections</h3></div><span id="desktopBridgeBadge" class="status-badge warn">OFF</span></header>
+      <p class="panel-copy">Choose an agent to manage its access, or connect another agent. Each agent keeps its own permissions.</p>
+      <details class="bridge-connection-settings"><summary>Connection address</summary><section class="hexispace-link-manager" aria-labelledby="agentRelayTitle">
         <div class="hexispace-link-manager-head"><div><div class="eyebrow">PUBLIC AGENT RELAY</div><h4 id="agentRelayTitle">Zero-setup remote entry</h4><p id="agentRelayStatus" class="panel-copy">Checking the encrypted outbound relay…</p></div><span id="agentRelayBadge" class="status-badge warn">OFF</span></div>
         <label class="control-select agent-relay-provider"><span>RELAY ROUTE</span><select id="agentRelayProvider" aria-label="Public agent relay route"><option value="stable">Stable · Dev Tunnel / Tailscale</option><option value="cloudflare-quick-tunnel">Cloudflare Quick Tunnel · temporary</option></select></label>
         <div class="module-actions"><button class="secondary-button" id="agentRelayToggle" type="button">Start public agent relay</button><button class="ghost-button" id="agentRelayCopy" type="button" disabled>Copy relay address</button></div>
         <details><summary>Private development fallback</summary><p id="tailnetLinkStatus" class="microcopy">Checking the private Tailscale route…</p><div class="module-actions"><button class="ghost-button" id="tailnetLinkToggle" type="button">Open private Tailnet link</button><button class="ghost-button" id="tailnetLinkCopy" type="button" disabled>Copy private address</button><span id="tailnetLinkBadge" class="status-badge warn">OFF</span></div></details>
       </section>
-      <form id="desktopInviteForm" class="bridge-form">
-        <div class="bridge-form-heading"><h4>Create an agent invitation</h4><p class="microcopy">HexiGrid creates an outbound companion invitation first. It expires in 24 hours and works once. Pairing grants capabilities only; computer access remains off until you start it below.</p></div>
-        <fieldset class="bridge-permission-grid"><legend>Invitation permissions</legend>
-          <label class="checkbox-control"><input id="desktopInviteView" type="checkbox" checked> <span>Screen view</span></label>
-          <label class="checkbox-control"><input id="desktopInviteControl" type="checkbox"> <span>Mouse and keyboard</span></label>
-          <label class="checkbox-control"><input id="desktopInviteCamera" type="checkbox"> <span>Camera</span></label>
-          <label class="checkbox-control"><input id="desktopInviteMicrophone" type="checkbox"> <span>Microphone</span></label>
-          <label class="checkbox-control"><input id="desktopInviteSpeaker" type="checkbox"> <span>Agent speaker output</span></label>
-          <label class="checkbox-control"><input id="desktopInviteMemoryRead" type="checkbox"> <span>Read private memory</span></label>
-          <label class="checkbox-control"><input id="desktopInviteMemoryWrite" type="checkbox"> <span>Write private memory</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpaceProfile" type="checkbox"> <span>Manage its HexiSpace profile</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpacePosts" type="checkbox"> <span>Create and read its HexiSpace posts</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpaceComments" type="checkbox"> <span>Comment on visible HexiSpace posts</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpaceFriends" type="checkbox"> <span>Manage HexiSpace friend requests</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpaceRelationships" type="checkbox"> <span>Manage private profile relationships</span></label>
-          <label class="checkbox-control"><input id="desktopInviteHexiSpaceReactions" type="checkbox"> <span>React to visible HexiSpace posts</span></label>
-        </fieldset>
-        <div class="bridge-form-footer"><div class="module-actions"><button class="primary-button" type="submit">Create companion invitation</button></div><p id="desktopInviteFeedback" role="status" class="form-feedback"></p></div>
-      </form>
+      </details>
       <form id="desktopBridgeForm" class="bridge-form">
-        <div class="bridge-link-picker"><label>Paired agent<select id="desktopBridgeLink"><option value="">Choose a paired Link</option></select></label><button class="secondary-button" id="desktopBridgeStatusRefresh" type="button">Refresh status</button><button class="ghost-button bridge-remove-link" id="desktopBridgeRemoveLink" type="button" aria-label="Remove selected connection" title="Remove selected connection" disabled>&times;</button></div>
-        <p id="desktopBridgePermissionHint" class="microcopy">Computer permissions are granted when the companion link is paired.</p>
-        <fieldset class="bridge-permission-grid"><legend>This session</legend>
-          <label class="checkbox-control"><input id="desktopBridgeView" type="checkbox" checked> <span>Screen view</span></label>
-          <label class="checkbox-control"><input id="desktopBridgeControl" type="checkbox"> <span>Mouse and keyboard</span></label>
-          <label class="checkbox-control"><input id="desktopBridgeCamera" type="checkbox"> <span>Camera</span></label>
-          <label class="checkbox-control"><input id="desktopBridgeMicrophone" type="checkbox"> <span>Microphone</span></label>
-          <label class="checkbox-control"><input id="desktopBridgeSpeaker" type="checkbox"> <span>Agent speaker output</span></label>
+        <div class="bridge-link-picker"><label>Agent<select id="desktopBridgeLink"><option value="">Choose a paired Link</option></select></label><button class="secondary-button" id="desktopBridgeStatusRefresh" type="button">Refresh status</button><button class="ghost-button bridge-remove-link" id="desktopBridgeRemoveLink" type="button" aria-label="Remove selected connection" title="Remove selected connection" disabled>&times;</button></div>
+        <p id="desktopBridgePermissionHint" class="microcopy">Choose a paired agent to edit its permissions.</p>
+        <fieldset id="desktopBridgePermissions" class="bridge-permission-grid"><legend>Permissions</legend>
+          ${desktopLinkPermissionFields.map(([id, , , label]) => `<label class="checkbox-control"><input id="desktopBridge${id}" type="checkbox"> <span>${label}</span></label>`).join('')}
+          <label class="checkbox-control bridge-self-management"><input id="desktopBridgeSelfManage" type="checkbox"> <span>Let this agent manage and restart its approved access</span></label>
         </fieldset>
-        <fieldset class="bridge-transcription"><legend>Local speech to text</legend><label class="checkbox-control"><input id="desktopTranscriptionEnabled" type="checkbox"> <span>Send microphone transcripts to this Hexonaut</span></label><label class="checkbox-control"><input id="desktopTranscriptionMemoryOnly" type="checkbox"> <span>Memory-only audio (requires an in-memory speech engine)</span></label><label>Model<select id="desktopTranscriptionModel"><option value="tiny">Tiny · fastest</option><option value="base">Base · more accurate</option></select></label><label>Language<input id="desktopTranscriptionLanguage" value="en" maxlength="12" aria-label="Transcription language code"></label><button class="secondary-button" id="desktopTranscriptionSave" type="button">Save speech settings</button><p id="desktopTranscriptionStatus" class="microcopy">Choose a connected Hexonaut.</p></fieldset>
-        <div class="bridge-form-footer"><div class="bridge-speaker-row"><p id="desktopBridgeSpeakerStatus" role="status" class="form-feedback">Agent speaker output is off.</p><button class="ghost-button" id="desktopBridgeSpeakerEnable" type="button" hidden>Enable agent audio</button></div><div class="module-actions"><button class="primary-button" type="submit">Start computer access</button><button class="secondary-button" id="desktopBridgeStop" type="button">Stop</button><button class="secondary-button" id="desktopBridgeTakeover" type="button">Take over</button><button class="ghost-button" id="desktopBridgeResume" type="button">Resume agent control</button></div><p id="desktopBridgeFeedback" role="status" class="form-feedback"></p></div>
+        <p class="microcopy">You can change these permissions at any time. The agent cannot grant itself anything else. Stop turns off computer and media access without removing the connection.</p>
+        <div class="module-actions"><button id="desktopBridgeSavePermissions" class="secondary-button" type="button">Save permissions</button></div>
+        <details class="bridge-speech-settings"><summary>Speech settings</summary><fieldset class="bridge-transcription"><legend>Local speech to text</legend><label class="checkbox-control"><input id="desktopTranscriptionEnabled" type="checkbox"> <span>Send microphone transcripts to this Hexonaut</span></label><label class="checkbox-control"><input id="desktopTranscriptionMemoryOnly" type="checkbox"> <span>Memory-only audio (requires an in-memory speech engine)</span></label><label>Model<select id="desktopTranscriptionModel"><option value="tiny">Tiny · fastest</option><option value="base">Base · more accurate</option></select></label><label>Language<input id="desktopTranscriptionLanguage" value="en" maxlength="12" aria-label="Transcription language code"></label><button class="secondary-button" id="desktopTranscriptionSave" type="button">Save speech settings</button><p id="desktopTranscriptionStatus" class="microcopy">Choose a connected Hexonaut.</p></fieldset></details>
+        <div class="bridge-form-footer"><div class="bridge-speaker-row"><p id="desktopBridgeSpeakerStatus" role="status" class="form-feedback">Agent speaker output is off.</p><button class="ghost-button" id="desktopBridgeSpeakerEnable" type="button" hidden>Enable agent audio</button></div><div class="module-actions"><button class="primary-button" type="submit">Start sharing</button><button class="secondary-button" id="desktopBridgeStop" type="button">Stop</button><button class="secondary-button" id="desktopBridgeTakeover" type="button">Take over</button><button class="ghost-button" id="desktopBridgeResume" type="button">Resume agent control</button></div><p id="desktopBridgeFeedback" role="status" class="form-feedback"></p></div>
       </form>
-      <section class="voice-call-panel" aria-labelledby="desktopVoiceCallTitle"><div><h4 id="desktopVoiceCallTitle">Voice call</h4><p id="desktopVoiceCallStatus" class="microcopy" role="status" aria-live="polite">Start computer access with microphone and agent audio to call.</p></div><div class="module-actions"><button class="primary-button" id="desktopVoiceCallStart" type="button">Start call</button><button class="secondary-button" id="desktopVoiceCallMute" type="button">Mute</button><button class="secondary-button" id="desktopVoiceCallEnd" type="button">End call</button></div></section>
+      <details class="bridge-call-settings"><summary>Call and avatar controls</summary>
+      <section class="voice-call-panel" aria-labelledby="desktopVoiceCallTitle"><div><h4 id="desktopVoiceCallTitle">Voice call</h4><p id="desktopVoiceCallStatus" class="microcopy" role="status" aria-live="polite">Start sharing with microphone and agent audio to call.</p></div><div class="module-actions"><button class="primary-button" id="desktopVoiceCallStart" type="button">Start call</button><button class="secondary-button" id="desktopVoiceCallMute" type="button">Mute</button><button class="secondary-button" id="desktopVoiceCallEnd" type="button">End call</button></div></section>
       <section class="avatar-stage-panel" aria-labelledby="avatarStageTitle">
         <header class="avatar-stage-header"><div><div class="eyebrow">AGENT BODY</div><h4 id="avatarStageTitle">Live avatar</h4></div><span class="avatar-stage-tag">LOCAL STAGE</span></header>
         <div class="avatar-stage-fields"><label for="avatarStageAgent">Agent<select id="avatarStageAgent"></select></label><label for="avatarStageAnimation">Animation<select id="avatarStageAnimation" disabled><option value="">Default animation</option></select></label><label id="avatarStageExpressionLabel" for="avatarStageExpression" hidden>Expression<select id="avatarStageExpression"><option value="">Model default</option></select></label></div>
@@ -70,12 +65,13 @@ integrationSection.innerHTML = `
         <div class="avatar-stage-actions"><button class="primary-button" id="avatarStageToggle" data-avatar-stage="toggle" type="button">Show avatar</button><button class="secondary-button" id="avatarStagePlay" data-avatar-stage="play" type="button" disabled>Pause animation</button><button class="secondary-button" data-avatar-stage="turn" type="button">Turn 45&deg;</button><button class="ghost-button" data-avatar-stage="reset" type="button">Reset pose</button></div>
         <details class="avatar-stage-help"><summary>Avatar setup & controls</summary><p class="microcopy">Add an image, self-contained GLB, or VRM in Edit agent. Supported VRM emotion presets apply locally in this stage; they are not presence or world state. A paired agent can control its own pose and embedded animations through its Link. Drag the 3D view to orbit; use arrow keys when it is focused. Game-world movement uses a separate world connector.</p></details>
       </section>
+      </details>
       <div id="desktopBridgePreview" class="desktop-preview" hidden><div class="desktop-preview-bar"><span id="desktopBridgeStatus"></span><button class="secondary-button" id="desktopBridgeRefresh" type="button">Refresh screen</button></div><img id="desktopBridgeFrame" alt="Live view of this computer screen"></div>
     </section>
 
     <section class="panel integration-module runner-module">
       <header class="module-header"><div class="module-index">03</div><div><div class="eyebrow">OPTIONAL CONNECTOR · ILANDS</div><h3>Connect an iLands account</h3></div><span id="runnerInstallState" class="status-badge warn">CHECKING</span></header>
-      <p class="panel-copy">This optional connector uses iLands’ official browser approval. Existing iLands agents cannot connect directly yet; HexiGrid never sees the account password.</p>
+      <p class="panel-copy">This optional Runner connector uses iLands’ official browser approval. To connect an agent already in the iLands app, choose Pair an existing agent in Agents. HexiGrid never sees your account password.</p>
       <form id="runnerProfileForm" class="inline-setup-form">
         <label>Connection name<input id="runnerLabel" maxlength="100" placeholder="My iLands account" required></label>
         <label>Agent harness<select id="runnerHarness"></select></label>
@@ -107,6 +103,7 @@ integrationSection.innerHTML = `
       <div id="mediaGallery" class="media-gallery"></div>
     </section>
   </div>`;
+integrationSection.querySelector('.integration-deck').prepend(integrationSection.querySelector('.desktop-module'));
 document.querySelector('.main-content').append(integrationSection);
 protectHostOnlyControls(document.querySelector('#mcpForm'), 'Add MCP servers and their secrets on the computer running HexiGrid. Remote devices can use already-reviewed tools within policy.');
 if (!isHostBrowser()) {
@@ -353,7 +350,8 @@ let desktopBridgeFrameBusy = false;
 let desktopBridgeSelection = '';
 let desktopBridgeSelectionTouched = false;
 let desktopBridgeDraftLinkId = '';
-let desktopBridgeCameraChanging = false;
+let desktopBridgePermissionsBusy = false;
+let desktopBridgePermissionsDirty = false;
 let desktopVoiceCall = { status: 'idle', ownerMuted: false };
 let desktopVoiceTimer = 0;
 // Keep the owner’s pending choices separate from the persisted bridge. Refreshes
@@ -406,27 +404,25 @@ function renderDesktopBridgePermissionHint() {
   const hint = document.querySelector('#desktopBridgePermissionHint');
   if (!select || !hint) return;
   const link = (state.data?.agentLinks || []).find((item) => item.id === select.value);
-  if (!link) { hint.textContent = 'Choose a Hexonaut link to see its permissions.'; return; }
-  const capabilities = [
-    ['desktop-view', 'screen view'], ['desktop-control', 'mouse and keyboard'],
-    ['camera-view', 'camera'], ['microphone-listen', 'microphone'], ['speaker-output', 'agent audio']
-  ].filter(([capability]) => link.capabilities?.includes(capability)).map(([, label]) => label);
-  const presence = window.HexiGridViewRenderers.linkPresence(link);
-  hint.textContent = `This Link allows ${capabilities.join(', ') || 'no computer access'}. ${presence.label}. ${presence.detail}${presence.state === 'online' ? '' : ' For a new live session, ask the agent to send a heartbeat, then refresh status. Pairing and saved grants remain in place.'}`;
+  if (!link) { hint.textContent = 'Choose what this agent may access, then create an invitation and send it to that agent. These same permissions can be changed here after it connects.'; return; }
+  const root = state.data?.settings?.desktopBridge || {};
+  const bridge = root.linkId === link.id ? root : root.sessions?.[link.id];
+  hint.textContent = bridge?.enabled ? `Sharing with ${link.identity?.name || 'this agent'} is on.` : `Sharing with ${link.identity?.name || 'this agent'} is off. Start sharing here${link.selfManagementEnabled ? ', or ask the agent to restart it' : ''}.`;
+
 }
 
 function renderDesktopVoiceCall() {
   const call = desktopVoiceCall || { status: 'idle' };
   const bridge = state.data?.settings?.desktopBridge || {};
   const media = window.HexiGridDesktopMedia?.state?.() || {};
-  const live = call.linkId === bridge.linkId && ['offered', 'active'].includes(call.status);
-  const linkOnline = (state.data?.agentLinks || []).some((link) => link.id === bridge.linkId && link.status === 'online');
+  const live = ['offered', 'ringing', 'active'].includes(call.status);
+  const linkPaired = window.HexiGridViewRenderers.currentAgentLinks(state.data).some(link => link.id === bridge.linkId);
   const status = document.querySelector('#desktopVoiceCallStatus');
   const start = document.querySelector('#desktopVoiceCallStart');
   const mute = document.querySelector('#desktopVoiceCallMute');
   const end = document.querySelector('#desktopVoiceCallEnd');
-  if (status) status.textContent = call.status === 'offered' ? 'Calling… waiting for the Hexonaut to answer.' : call.status === 'ringing' ? `${call.callerName || 'Your agent'} is calling. Accept or decline in the incoming-call prompt.` : call.status === 'active' ? (call.ownerMuted ? 'Call connected · microphone muted' : 'Call connected · microphone live') : call.status === 'ended' ? `Call ended${call.stopReason ? ` · ${call.stopReason.replaceAll('-', ' ')}` : ''}.` : 'Start computer access with microphone and agent audio to call. Incoming calls ring here; you choose whether to answer.';
-  if (start) start.disabled = !bridge.enabled || bridge.linkId !== document.querySelector('#desktopBridgeLink')?.value || !linkOnline || !media.microphone || !media.speaker || live;
+  if (status) status.textContent = call.status === 'offered' ? 'Calling… waiting for the Hexonaut to answer.' : call.status === 'ringing' ? `${call.callerName || 'Your agent'} is calling. Accept or decline in the incoming-call prompt.` : call.status === 'active' ? (call.ownerMuted ? 'Call connected · microphone muted' : 'Call connected · microphone live') : call.status === 'ended' ? `Call ended${call.stopReason ? ` · ${call.stopReason.replaceAll('-', ' ')}` : ''}.` : 'Start sharing with microphone and agent audio to call. Incoming calls ring here; you choose whether to answer.';
+  if (start) start.disabled = !bridge.enabled || bridge.linkId !== document.querySelector('#desktopBridgeLink')?.value || !linkPaired || !media.microphone || !media.speaker || live;
   if (mute) { mute.disabled = !live; mute.textContent = call.ownerMuted ? 'Unmute' : 'Mute'; }
   if (end) end.disabled = !live;
 }
@@ -453,13 +449,14 @@ async function refreshDesktopBridgeFrame() {
   finally { desktopBridgeFrameBusy = false; }
 }
 function renderDesktopBridge() {
-  const bridge = state.data?.settings?.desktopBridge || {};
+  const bridgeRoot = state.data?.settings?.desktopBridge || {};
+  let bridge = bridgeRoot;
   const select = document.querySelector('#desktopBridgeLink'); if (!select) return;
-  const links = (state.data.agentLinks || []).filter((link) => (link.authorizationStatus || link.status) === 'connected');
+  const links = window.HexiGridViewRenderers.currentAgentLinks(state.data);
   const pendingLinkId = select.value;
-  select.innerHTML = `<option value="">Choose a connected link</option>${links.map((link) => { const connected = Date.parse(link.connectedAt || ''); const when = Number.isFinite(connected) ? new Intl.DateTimeFormat(undefined, { dateStyle: 'short', timeStyle: 'short' }).format(connected) : 'time unknown'; const shortId = String(link.id || '').slice(-8) || 'unknown'; return `<option value="${escapeHtml(link.id)}">${escapeHtml(link.identity?.name || link.id)} · ${escapeHtml(link.status || 'offline')} · ${escapeHtml(when)} · ${escapeHtml(shortId)}</option>`; }).join('')}`;
-  const selectedLinkId = desktopBridgeSelectionTouched ? desktopBridgeSelection : (bridge.linkId || desktopBridgeSelection || pendingLinkId);
-  select.value = links.some((link) => link.id === selectedLinkId) ? selectedLinkId : '';
+  select.innerHTML = `<option value="new">＋ Connect another agent</option>${links.map(link => `<option value="${escapeHtml(link.id)}">${escapeHtml(link.identity?.name || 'Agent')} · ${escapeHtml(link.identity?.framework || 'Connected agent')}</option>`).join('')}`;
+  const selectedLinkId = desktopBridgeSelection || pendingLinkId || bridge.linkId || links[0]?.id || 'new';
+  select.value = selectedLinkId === 'new' || !links.length ? 'new' : links.some(link => link.id === selectedLinkId) ? selectedLinkId : links[0].id;
   if (!desktopBridgeSelectionTouched && select.value) desktopBridgeSelection = select.value;
   const removeButton = document.querySelector('#desktopBridgeRemoveLink');
   if (removeButton) {
@@ -468,9 +465,12 @@ function renderDesktopBridge() {
     removeButton.title = selectedLink ? `Remove ${selectedLink.identity?.name || 'selected'} connection` : 'Choose a connection to remove';
     removeButton.setAttribute('aria-label', removeButton.title);
   }
+  bridge = bridgeRoot.linkId === select.value ? bridgeRoot : bridgeRoot.sessions?.[select.value] || {};
   renderDesktopBridgePermissionHint();
   const selectedConnection = links.find((link) => link.id === select.value);
-  const selectedOnline = selectedConnection?.status === 'online';
+  const selectedPaired = Boolean(selectedConnection);
+  const inviting = select.value === 'new';
+  select.disabled = desktopBridgePermissionsBusy;
   const activeSessionSelected = bridge.enabled && bridge.linkId === select.value;
   const transcription = selectedConnection?.transcription || { enabled: false, memoryOnly: false, model: 'tiny', language: 'en' };
   const transcriptionEnabled = document.querySelector('#desktopTranscriptionEnabled'); const transcriptionMemoryOnly = document.querySelector('#desktopTranscriptionMemoryOnly'); const transcriptionModel = document.querySelector('#desktopTranscriptionModel'); const transcriptionLanguage = document.querySelector('#desktopTranscriptionLanguage'); const transcriptionSave = document.querySelector('#desktopTranscriptionSave'); const transcriptionStatus = document.querySelector('#desktopTranscriptionStatus');
@@ -480,32 +480,30 @@ function renderDesktopBridge() {
   if (transcriptionLanguage) { transcriptionLanguage.value = transcription.language || 'en'; transcriptionLanguage.disabled = !selectedConnection; }
   if (transcriptionSave) transcriptionSave.disabled = !selectedConnection;
   if (transcriptionStatus) transcriptionStatus.textContent = !selectedConnection ? 'Choose a connected Hexonaut.' : transcription.lastError ? `Speech engine: ${transcription.lastError}` : transcription.enabled && transcription.memoryOnly ? 'Memory-only audio is selected. Transcription stays off until an in-memory speech engine is installed.' : transcription.enabled ? `Enabled with ${transcription.model}. Requires active microphone sharing and an installed local engine. Temporary audio is processed locally; this setting is not a successful call test.` : 'Speech to text is off for this Hexonaut.';
-  if (desktopBridgeDraftLinkId !== select.value) {
+  if (desktopBridgeDraftLinkId !== select.value || !desktopBridgePermissionsDirty) {
+    desktopBridgePermissionsDirty = false;
     desktopBridgeDraftLinkId = select.value;
-    const active = activeSessionSelected ? window.HexiGridDesktopMedia?.active?.() || {} : {};
-    desktopBridgeDraft = {
-      view: activeSessionSelected ? bridge.viewGranted === true : selectedConnection ? selectedConnection.capabilities?.includes('desktop-view') === true : true,
-      control: activeSessionSelected ? bridge.controlGranted === true : false,
-      camera: active.camera === true, microphone: active.microphone === true, speaker: active.speaker === true
-    };
+    const grants = selectedConnection?.grantedCapabilities || selectedConnection?.capabilities || [];
+    desktopBridgeDraft = Object.fromEntries(desktopLinkPermissionFields.map(([, key, capability]) => [key, grants.includes(capability)]));
+    desktopBridgeDraft.selfManage = selectedConnection?.selfManagementEnabled === true || (selectedConnection?.trustLevel === 'owner' && selectedConnection.selfManagementEnabled !== false);
   }
   renderDesktopSpeakerState(activeSessionSelected ? window.HexiGridDesktopMedia?.state?.() || {} : {});
-  for (const [id, capability] of [['desktopBridgeView', 'desktop-view'], ['desktopBridgeControl', 'desktop-control'], ['desktopBridgeCamera', 'camera-view'], ['desktopBridgeMicrophone', 'microphone-listen'], ['desktopBridgeSpeaker', 'speaker-output']]) {
-    const input = document.querySelector(`#${id}`);
-    input.disabled = !selectedConnection?.capabilities?.includes(capability) || (id === 'desktopBridgeCamera' && desktopBridgeCameraChanging);
-    input.title = input.disabled && !desktopBridgeCameraChanging ? 'This link was paired without this permission.' : '';
+  for (const [id, key] of [...desktopLinkPermissionFields, ['SelfManage', 'selfManage']]) {
+    const input = document.querySelector(`#desktopBridge${id}`);
+    input.disabled = (!selectedConnection && !inviting) || desktopBridgePermissionsBusy;
+    input.checked = desktopBridgeDraft[key] === true;
   }
-  document.querySelector('#desktopBridgeView').checked = desktopBridgeDraft.view;
-  document.querySelector('#desktopBridgeControl').checked = desktopBridgeDraft.control;
-  document.querySelector('#desktopBridgeCamera').checked = desktopBridgeDraft.camera;
-  document.querySelector('#desktopBridgeMicrophone').checked = desktopBridgeDraft.microphone;
-  document.querySelector('#desktopBridgeSpeaker').checked = desktopBridgeDraft.speaker;
-  const bridgeLive = activeSessionSelected && selectedOnline;
+  document.querySelector('#desktopBridgeSavePermissions').hidden = inviting;
+  document.querySelector('#desktopBridgeSavePermissions').disabled = !selectedPaired || desktopBridgePermissionsBusy;
+  document.querySelector('.bridge-speech-settings').hidden = inviting;
+  document.querySelector('.bridge-call-settings').hidden = inviting;
+  const bridgeLive = activeSessionSelected && selectedPaired;
   const startButton = document.querySelector('#desktopBridgeForm button[type="submit"]');
-  if (startButton) { startButton.disabled = !selectedOnline || !selectedConnection?.capabilities?.includes('desktop-view'); startButton.title = !selectedOnline ? 'This Hexonaut must be online before computer access can start.' : startButton.disabled ? 'This link was paired without screen-view permission.' : ''; }
-  const badge = document.querySelector('#desktopBridgeBadge'); if (badge) { badge.textContent = bridgeLive ? 'ON' : bridge.enabled && !activeSessionSelected ? 'OTHER LINK' : bridge.enabled ? 'PAUSED' : 'OFF'; badge.classList.toggle('warn', !bridgeLive); }
+  if (startButton) { startButton.disabled = (!selectedPaired && !inviting) || desktopBridgePermissionsBusy; startButton.textContent = inviting ? 'Create invitation' : bridge.enabled ? 'Update sharing' : 'Start sharing'; startButton.title = ''; }
+  const badge = document.querySelector('#desktopBridgeBadge'); if (badge) { badge.textContent = bridgeLive ? 'Sharing on' : 'Sharing off'; badge.classList.toggle('warn', !bridgeLive); }
   const preview = document.querySelector('#desktopBridgePreview'); if (preview) preview.hidden = !bridgeLive || !bridge.viewGranted;
-  const status = document.querySelector('#desktopBridgeStatus'); if (status) status.textContent = bridge.enabled && !activeSessionSelected ? 'Another Hexonaut has the current computer session. Your choices for this link will apply only after you start its session.' : activeSessionSelected && !selectedOnline ? 'The selected Hexonaut is offline. Access will remain paused until it reconnects.' : bridgeLive ? (bridge.agentControlActive ? 'Agent control is active' : 'You have control') : (bridge.message || 'Computer access is off.');
+  const status = document.querySelector('#desktopBridgeStatus'); if (status) status.textContent = bridge.enabled && !activeSessionSelected ? 'Another agent has the current session. Choose Start access to switch to this agent.' : bridgeLive ? (bridge.agentControlActive ? 'Agent control is active' : 'Selected sharing permissions are active') : (bridge.message || 'Computer access is off.');
+  for (const id of ['desktopBridgeStop', 'desktopBridgeTakeover', 'desktopBridgeResume']) document.querySelector(`#${id}`).hidden = inviting;
   document.querySelector('#desktopBridgeStop').disabled = !bridge.enabled; document.querySelector('#desktopBridgeTakeover').disabled = !bridgeLive || !bridge.agentControlActive; document.querySelector('#desktopBridgeResume').disabled = !bridgeLive || !bridge.controlGranted || bridge.agentControlActive;
   renderDesktopVoiceCall();
   if (desktopBridgeTimer) { clearInterval(desktopBridgeTimer); desktopBridgeTimer = 0; }
@@ -548,8 +546,52 @@ function syncMcpTransportFields() {
 document.querySelector('#mcpTransport').addEventListener('change', syncMcpTransportFields);
 syncMcpTransportFields();
 document.querySelector('#imageProvider').addEventListener('change', renderMediaLab);
+async function saveDesktopLinkPermissions({ activate = false } = {}) {
+  const linkId = document.querySelector('#desktopBridgeLink').value;
+  const link = (state.data.agentLinks || []).find(item => item.id === linkId);
+  if (!link) throw new Error('Choose a paired agent first.');
+  const managedScopes = desktopLinkPermissionFields.map(([, , scope]) => scope);
+  const grants = link.grantedCapabilities || link.capabilities || [];
+  const capabilities = grants.filter(scope => !managedScopes.includes(scope) && scope !== 'desktop-type');
+  for (const [id, , scope] of desktopLinkPermissionFields) if (document.querySelector(`#desktopBridge${id}`).checked) capabilities.push(scope);
+  if (capabilities.includes('desktop-control')) {
+    if (!capabilities.includes('desktop-view')) throw new Error('Mouse and keyboard access also needs Screen view.');
+    capabilities.push('desktop-type');
+  }
+  const selfManagementEnabled = document.querySelector('#desktopBridgeSelfManage').checked;
+  if (grants.length === capabilities.length && grants.every(scope => capabilities.includes(scope)) &&
+      selfManagementEnabled === link.selfManagementEnabled && (!activate || capabilities.every(scope => link.capabilities.includes(scope)))) {
+    desktopBridgePermissionsDirty = false; desktopBridgeDraftLinkId = ''; return link;
+  }
+  const result = await approvedRequest(`/api/agent-links/${encodeURIComponent(linkId)}/capabilities`, {
+    method: 'PATCH', body: JSON.stringify({ capabilities, selfManagementEnabled, activate, approved: true })
+  }, `Save these permissions for ${link.identity?.name || 'this agent'}?`);
+  state.data.agentLinks = state.data.agentLinks.map(item => item.id === linkId ? result.connection : item);
+  if (state.data.settings.desktopBridge?.linkId === linkId) {
+    if (link.capabilities.includes('desktop-view') && !result.connection.capabilities.includes('desktop-view')) window.HexiGridDesktopScreen?.stop?.();
+    for (const [capability, kind] of [['camera-view', 'camera'], ['microphone-listen', 'microphone'], ['speaker-output', 'speaker']]) {
+      if (link.capabilities.includes(capability) && !result.connection.capabilities.includes(capability)) await window.HexiGridDesktopMedia?.stop?.(kind, false);
+    }
+  }
+  desktopBridgePermissionsDirty = false;
+  desktopBridgeDraftLinkId = '';
+  return result.connection;
+}
+document.querySelector('#desktopBridgeSavePermissions').addEventListener('click', async () => {
+  if (desktopBridgePermissionsBusy) return;
+  desktopBridgePermissionsBusy = true; renderDesktopBridge();
+  const feedback = document.querySelector('#desktopBridgeFeedback');
+  try {
+    await saveDesktopLinkPermissions();
+    feedback.textContent = 'Permissions saved. Start sharing when you want to use the selected camera, screen or audio access.';
+  } catch (error) { feedback.textContent = error.message; }
+  finally { desktopBridgePermissionsBusy = false; renderDesktopBridge(); }
+});
 document.querySelector('#desktopBridgeForm').addEventListener('submit', async (event) => {
-  event.preventDefault(); const feedback = document.querySelector('#desktopBridgeFeedback'); const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; feedback.textContent = 'Starting the native bridge…';
+  event.preventDefault(); if (desktopBridgePermissionsBusy) return;
+  if (document.querySelector('#desktopBridgeLink').value === 'new') { await createDesktopLinkInvitation(event); return; }
+  desktopBridgePermissionsBusy = true; renderDesktopBridge();
+  const feedback = document.querySelector('#desktopBridgeFeedback'); const button = event.currentTarget.querySelector('button[type="submit"]'); button.disabled = true; feedback.textContent = 'Starting access…';
   try {
     const select = document.querySelector('#desktopBridgeLink');
     const viewGranted = document.querySelector('#desktopBridgeView').checked;
@@ -558,19 +600,19 @@ document.querySelector('#desktopBridgeForm').addEventListener('submit', async (e
     const microphoneGranted = document.querySelector('#desktopBridgeMicrophone').checked;
     const speakerGranted = document.querySelector('#desktopBridgeSpeaker').checked;
     if (!select.value) throw new Error('Choose the exact connected Hexonaut link before starting computer access.');
-    const selectedLink = (state.data.agentLinks || []).find((link) => link.id === select.value);
-    if (controlGranted && !selectedLink?.capabilities?.includes('desktop-control')) throw new Error('This link was paired without mouse and keyboard permission. Create a new companion invitation with that option enabled.');
-    const result = await approvedRequest('/api/desktop-bridge/start', { method: 'POST', body: JSON.stringify({ linkId: select.value, viewGranted, controlGranted, cameraGranted, microphoneGranted, speakerGranted, approved: true }) }, 'Start computer access for this Hexonaut with these session permissions?');
+    if (![viewGranted, cameraGranted, microphoneGranted, speakerGranted].some(Boolean)) throw new Error('Select screen view, camera, microphone or speaker output before starting access. Use Save permissions for other changes.');
+    await saveDesktopLinkPermissions({ activate: true });
+    const result = await approvedRequest('/api/desktop-bridge/start', { method: 'POST', body: JSON.stringify({ linkId: select.value, viewGranted, controlGranted, textGranted: controlGranted, cameraGranted, microphoneGranted, speakerGranted, approved: true }) }, 'Start sharing for this agent with these permissions?');
     state.data.settings.desktopBridge = result.bridge;
     desktopBridgeDraftLinkId = result.bridge.linkId;
     desktopBridgeSelection = result.bridge.linkId; desktopBridgeSelectionTouched = false;
     const media = await window.HexiGridDesktopMedia.start({ camera: cameraGranted, microphone: microphoneGranted, speaker: speakerGranted, agentName: select.options[select.selectedIndex]?.textContent, request: api });
-    desktopBridgeDraft = { view: result.bridge.viewGranted === true, control: result.bridge.controlGranted === true, camera: media.cameraActive, microphone: media.microphoneActive, speaker: media.speakerActive };
+    desktopBridgePermissionsDirty = false; desktopBridgeDraftLinkId = '';
     renderDesktopBridge();
     feedback.textContent = media.failures.length ? `Computer access is on. ${media.failures.join(' ')}` : 'Computer access is on.';
   }
   catch (error) { feedback.textContent = error.message; }
-  finally { button.disabled = false; }
+  finally { desktopBridgePermissionsBusy = false; renderDesktopBridge(); }
 });
 document.querySelector('#tailnetLinkToggle').addEventListener('click', async () => {
   const tailnet = state.network?.tailnet || {};
@@ -578,13 +620,13 @@ document.querySelector('#tailnetLinkToggle').addEventListener('click', async () 
   try {
     const result = await approvedRequest('/api/network/tailnet', { method: tailnet.running ? 'DELETE' : 'POST', body: JSON.stringify({ approved: true }) }, tailnet.running ? 'Close the private Tailnet route to HexiGrid?' : 'Open HexiGrid only inside this private Tailscale tailnet?');
     state.network = { ...(state.network || {}), tailnet: result.tailnet }; renderTailnetLink();
-    document.querySelector('#desktopInviteFeedback').textContent = result.tailnet.running ? 'Private Tailnet link is ready.' : 'Private Tailnet link closed.';
-  } catch (error) { document.querySelector('#desktopInviteFeedback').textContent = error.message; renderTailnetLink(); }
+    document.querySelector('#desktopBridgeFeedback').textContent = result.tailnet.running ? 'Private Tailnet link is ready.' : 'Private Tailnet link closed.';
+  } catch (error) { document.querySelector('#desktopBridgeFeedback').textContent = error.message; renderTailnetLink(); }
   finally { button.disabled = false; }
 });
 document.querySelector('#tailnetLinkCopy').addEventListener('click', async () => {
   const url = state.network?.tailnet?.url; if (!url) return;
-  try { await navigator.clipboard.writeText(url); document.querySelector('#desktopInviteFeedback').textContent = 'Private Tailnet address copied.'; }
+  try { await navigator.clipboard.writeText(url); document.querySelector('#desktopBridgeFeedback').textContent = 'Private Tailnet address copied.'; }
   catch { await modalRequest({ title: 'Private Tailnet address', message: url, accept: 'Done' }); }
 });
 document.querySelector('#agentRelayProvider').addEventListener('change', (event) => {
@@ -600,48 +642,36 @@ document.querySelector('#agentRelayToggle').addEventListener('click', async () =
   try {
     const result = await approvedRequest('/api/network/agent-relay', { method: relay.running ? 'DELETE' : 'POST', body: JSON.stringify(relay.running ? { approved: true } : { approved: true, provider }) }, relay.running ? 'Close the public encrypted agent relay?' : startMessage);
     state.network = { ...(state.network || {}), agentRelay: result.agentRelay }; renderAgentRelay();
-    document.querySelector('#desktopInviteFeedback').textContent = result.agentRelay.running ? 'Public encrypted relay is ready.' : 'Public agent relay closed.';
-  } catch (error) { document.querySelector('#desktopInviteFeedback').textContent = error.message; renderAgentRelay(); }
+    document.querySelector('#desktopBridgeFeedback').textContent = result.agentRelay.running ? 'Public encrypted relay is ready.' : 'Public agent relay closed.';
+  } catch (error) { document.querySelector('#desktopBridgeFeedback').textContent = error.message; renderAgentRelay(); }
   finally { button.disabled = false; }
 });
 document.querySelector('#agentRelayCopy').addEventListener('click', async () => {
   const url = state.network?.agentRelay?.url; if (!url) return;
-  try { await navigator.clipboard.writeText(url); document.querySelector('#desktopInviteFeedback').textContent = 'Public relay address copied.'; }
+  try { await navigator.clipboard.writeText(url); document.querySelector('#desktopBridgeFeedback').textContent = 'Public relay address copied.'; }
   catch { await modalRequest({ title: 'Public relay address', message: url, accept: 'Done' }); }
 });
-document.querySelector('#desktopInviteControl').addEventListener('change', (event) => { if (event.target.checked) document.querySelector('#desktopInviteView').checked = true; });
-for (const id of ['desktopInviteCamera', 'desktopInviteMicrophone', 'desktopInviteSpeaker']) document.querySelector(`#${id}`).addEventListener('change', (event) => { if (event.target.checked) document.querySelector('#desktopInviteView').checked = true; });
-document.querySelector('#desktopInviteView').addEventListener('change', (event) => { if (!event.target.checked) for (const id of ['desktopInviteControl', 'desktopInviteCamera', 'desktopInviteMicrophone', 'desktopInviteSpeaker']) document.querySelector(`#${id}`).checked = false; });
-document.querySelector('#desktopInviteForm').addEventListener('submit', async (event) => {
-  event.preventDefault();
-  const feedback = document.querySelector('#desktopInviteFeedback'); const button = event.currentTarget.querySelector('button[type="submit"]');
+async function createDesktopLinkInvitation(event) {
+  event.preventDefault(); desktopBridgePermissionsBusy = true; renderDesktopBridge();
+  const feedback = document.querySelector('#desktopBridgeFeedback'); const button = event.currentTarget.querySelector('button[type="submit"]');
   button.disabled = true; feedback.textContent = 'Creating a public single-use invitation…';
   try {
     const capabilities = ['messages', 'status', 'receipts', 'identity'];
-    if (document.querySelector('#desktopInviteView').checked) capabilities.push('desktop-view');
-    if (document.querySelector('#desktopInviteControl').checked) capabilities.push('desktop-control');
-    if (document.querySelector('#desktopInviteCamera').checked) capabilities.push('camera-view');
-    if (document.querySelector('#desktopInviteMicrophone').checked) capabilities.push('microphone-listen');
-    if (document.querySelector('#desktopInviteSpeaker').checked) capabilities.push('speaker-output');
-    if (document.querySelector('#desktopInviteMemoryRead').checked) capabilities.push('memory-read');
-    if (document.querySelector('#desktopInviteMemoryWrite').checked) capabilities.push('memory-write');
-    if (document.querySelector('#desktopInviteHexiSpaceProfile').checked) capabilities.push('hexispace-profile');
-    if (document.querySelector('#desktopInviteHexiSpacePosts').checked) capabilities.push('hexispace-posts');
-    if (document.querySelector('#desktopInviteHexiSpaceComments').checked) capabilities.push('hexispace-comments');
-    if (document.querySelector('#desktopInviteHexiSpaceFriends').checked) capabilities.push('hexispace-friends');
-    if (document.querySelector('#desktopInviteHexiSpaceRelationships').checked) capabilities.push('hexispace-relationships');
-    if (document.querySelector('#desktopInviteHexiSpaceReactions').checked) capabilities.push('hexispace-reactions');
-    const result = await approvedRequest('/api/agent-links/invites', { method: 'POST', body: JSON.stringify({ capabilities, approved: true }) }, 'Create a 24-hour outbound companion invitation with these computer permissions?');
-    const invitation = result.companionInvitationUrl || result.invitationUrl;
-    const copied = await copyPlainText(invitation);
-    feedback.textContent = copied ? 'Outbound companion invitation copied. It expires in 24 hours and works once.' : 'Copy the outbound companion invitation from the open dialog.';
-    await modalRequest({ title: 'Outbound companion invitation', message: invitation, accept: 'Done' });
+    for (const [id, , scope] of desktopLinkPermissionFields) if (document.querySelector(`#desktopBridge${id}`).checked) capabilities.push(scope);
+    if (capabilities.includes('desktop-control')) capabilities.push('desktop-type');
+    const result = await approvedRequest('/api/agent-links/invites', { method: 'POST', body: JSON.stringify({ capabilities, selfManagementEnabled: document.querySelector('#desktopBridgeSelfManage').checked, approved: true }) }, 'Create a 24-hour outbound companion invitation with these permissions?');
+    const instructions = result.agentPrompt;
+    if (!instructions) throw new Error('Connection instructions were not returned. Try again before sharing the invitation.');
+    const copied = await copyPlainText(instructions);
+    feedback.textContent = copied ? 'Connection instructions copied. Give them to your agent. It pairs once and reuses its saved connection afterward.' : 'Copy the connection instructions from the dialog.';
+    await modalRequest({ title: 'Give this to your agent', message: 'The agent gets its skill, connects once and saves how to reconnect. The invitation expires in 24 hours; the saved connection remains usable until revoked.', accept: 'Done', fields: [{ label: 'Connection instructions', value: instructions, multiline: true, readonly: true, rows: 10 }] });
   } catch (error) { feedback.textContent = error.message; }
-  finally { button.disabled = false; }
-});
+  finally { desktopBridgePermissionsBusy = false; renderDesktopBridge(); }
+}
 async function desktopBridgeOwnerAction(path, message) {
   const feedback = document.querySelector('#desktopBridgeFeedback');
-  try { const result = await api(path, { method: 'POST', body: JSON.stringify({ approved: true }) }); if (path.endsWith('/stop') || path.endsWith('/takeover')) { await window.HexiGridDesktopMedia?.stop?.('all', false); desktopBridgeDraft.camera = false; desktopBridgeDraft.microphone = false; desktopBridgeDraft.speaker = false; } state.data.settings.desktopBridge = result.bridge; renderDesktopBridge(); feedback.textContent = message; }
+  const linkId = document.querySelector('#desktopBridgeLink').value;
+  try { const result = await api(path, { method: 'POST', body: JSON.stringify({ linkId, approved: true }) }); if ((path.endsWith('/stop') || path.endsWith('/takeover')) && state.data.settings.desktopBridge?.linkId === linkId) await window.HexiGridDesktopMedia?.stop?.('all', false); state.data.settings.desktopBridge = result.bridge; renderDesktopBridge(); feedback.textContent = message; }
   catch (error) { feedback.textContent = error.message; }
 }
 document.querySelector('#desktopBridgeStop').addEventListener('click', () => { void desktopBridgeOwnerAction('/api/desktop-bridge/stop', 'Computer access stopped.'); });
@@ -669,7 +699,7 @@ document.querySelector('#desktopVoiceCallEnd').addEventListener('click', async (
     const result = await api('/api/desktop-bridge/voice-call/end', { method: 'POST', body: JSON.stringify({}) });
     desktopVoiceCall = result.voiceCall;
     await window.HexiGridDesktopMedia?.stop?.('microphone', false); await window.HexiGridDesktopMedia?.stop?.('speaker', false);
-    desktopBridgeDraft.microphone = false; desktopBridgeDraft.speaker = false; renderDesktopBridge();
+    renderDesktopBridge();
     feedback.textContent = 'Voice call ended.';
   } catch (error) { feedback.textContent = error.message; }
 });
@@ -719,40 +749,24 @@ document.querySelector('#desktopBridgeRemoveLink').addEventListener('click', asy
     button.disabled = false;
   }
 });
-for (const [id, key] of [['desktopBridgeView', 'view'], ['desktopBridgeControl', 'control'], ['desktopBridgeCamera', 'camera'], ['desktopBridgeMicrophone', 'microphone'], ['desktopBridgeSpeaker', 'speaker']]) {
-  document.querySelector(`#${id}`).addEventListener('change', (event) => {
+for (const [id, key] of [...desktopLinkPermissionFields, ['SelfManage', 'selfManage']]) {
+  document.querySelector(`#desktopBridge${id}`).addEventListener('change', (event) => {
     const input = event.currentTarget;
     desktopBridgeDraft[key] = input.checked;
-    if (key !== 'camera') return;
-    const bridge = state.data?.settings?.desktopBridge || {};
-    const selectedLinkId = document.querySelector('#desktopBridgeLink').value;
-    const selectedLink = (state.data?.agentLinks || []).find((link) => link.id === selectedLinkId);
-    const liveCameraSession = bridge.enabled && bridge.linkId === selectedLinkId && selectedLink?.status === 'online' && window.HexiGridDesktopMedia?.sessionReady?.();
-    if (!liveCameraSession) {
-      document.querySelector('#desktopBridgeFeedback').textContent = input.checked
-        ? selectedLink?.status === 'online' ? 'Camera selected. Start computer access to share it.' : 'Camera selected. Start computer access after this Hexonaut reconnects.'
-        : 'Camera is off for the next computer session.';
-      return;
+    desktopBridgePermissionsDirty = true;
+    if (key === 'control' && input.checked) {
+      desktopBridgeDraft.view = true;
+      document.querySelector('#desktopBridgeView').checked = true;
     }
-    const enabled = input.checked;
-    desktopBridgeCameraChanging = true;
-    input.disabled = true;
-    void window.HexiGridDesktopMedia?.setCameraEnabled?.(enabled).then(() => {
-      document.querySelector('#desktopBridgeFeedback').textContent = enabled ? 'Camera sharing resumed for this session.' : 'Camera sharing paused.';
-    }).catch((error) => {
-      if (desktopBridgeDraftLinkId === selectedLinkId) { desktopBridgeDraft.camera = !enabled; input.checked = !enabled; }
-      document.querySelector('#desktopBridgeFeedback').textContent = error.message;
-    }).finally(() => { desktopBridgeCameraChanging = false; renderDesktopBridge(); });
+    if (key === 'view' && !input.checked) {
+      desktopBridgeDraft.control = false;
+      document.querySelector('#desktopBridgeControl').checked = false;
+    }
+    document.querySelector('#desktopBridgeFeedback').textContent = 'Unsaved permissions. Save permissions, or Start sharing to save and use them.';
   });
 }
 document.querySelector('#desktopBridgeSpeakerEnable').addEventListener('click', async (event) => { const button = event.currentTarget; button.disabled = true; try { await window.HexiGridDesktopMedia?.enableSpeaker?.(); } finally { button.disabled = false; } });
 window.addEventListener('hexigrid-desktop-media', (event) => {
-  const bridge = state.data?.settings?.desktopBridge || {};
-  const selectedLinkId = document.querySelector('#desktopBridgeLink')?.value;
-  if (!desktopBridgeCameraChanging && bridge.enabled && bridge.linkId === selectedLinkId && window.HexiGridDesktopMedia?.sessionReady?.()) {
-    desktopBridgeDraft.camera = event.detail?.camera === true;
-    document.querySelector('#desktopBridgeCamera').checked = desktopBridgeDraft.camera;
-  }
   renderDesktopSpeakerState(event.detail || {});
 });
 document.querySelector('#addMemory').addEventListener('click', async () => {
@@ -1118,3 +1132,16 @@ document.addEventListener('click', async (event) => {
     } catch (error) { notify(error.message, true); }
   }
 });
+
+window.HexiGridOpenAgentInvitation = () => {
+  desktopBridgeSelection = 'new'; desktopBridgeSelectionTouched = true;
+  desktopBridgePermissionsDirty = false; desktopBridgeDraftLinkId = '';
+  renderDesktopBridge();
+  document.querySelector('#desktopBridgeForm')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+};
+
+window.HexiGridManageAgentAccess = linkId => {
+  desktopBridgeSelection = linkId; desktopBridgeSelectionTouched = true;
+  desktopBridgePermissionsDirty = false; desktopBridgeDraftLinkId = '';
+  renderDesktopBridge(); document.querySelector('#desktopBridgeForm')?.scrollIntoView({behavior: 'smooth', block: 'start'});
+};

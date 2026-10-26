@@ -480,7 +480,7 @@ function showView(view, { updateHistory = true } = {}) {
 function openAgentLinkInvite() {
   closeConnectModal();
   showView('integrations');
-  setTimeout(() => document.querySelector('#desktopInviteForm')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 0);
+  setTimeout(() => window.HexiGridOpenAgentInvitation?.(), 0);
 }
 
 async function updateSettings(patch, message, preserveCommunication = false) {

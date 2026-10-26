@@ -21,6 +21,11 @@ Use **Calls** to choose an agent, start voice/video calls or manage an active ca
 
 Some external agents require a supported responder or browser helper to receive your speech and return replies. See the [how-to guide](HOW-TO-GUIDE.md) and [browser-call helper](../integrations/call-browser/README.md).
 
+Local transcription also needs its speech engine, model and FFmpeg. If a fresh
+installation reports one missing, follow [local speech setup](WINDOWS-SPEECH-SETUP.md).
+These optional speech tools are separate from the Node.js runtime included in
+the installer; text chat does not require them.
+
 ## Your workspace
 
 Desktop data is stored separately from program files in your Windows roaming application-data folder under **HexiGrid/workspace**. Replacing or uninstalling the program preserves this workspace.

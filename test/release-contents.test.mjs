@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { agentLinkSkillBundle } from '../lib/agent-link-skill-bundle.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -16,6 +17,11 @@ test('actual distribution excludes private development material and includes pub
     { cwd: root, encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: 8 * 1024 * 1024 });
   const [packed] = JSON.parse(output);
   const files = packed.files.map(file => file.path);
+  const bundle = await agentLinkSkillBundle(path.join(root, 'integrations/hexigrid-link'), root);
+  for (const file of bundle.files) {
+    const packagedPath = file.path.startsWith('lib/') ? file.path : `integrations/hexigrid-link/${file.path}`;
+    assert.ok(files.includes(packagedPath), `Missing Link bundle file: ${packagedPath}`);
+  }
   const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   const publicDocs = new Set(packageJson.files.filter(file => file.startsWith('docs/')));
   for (const file of files) {

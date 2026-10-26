@@ -493,3 +493,8 @@ body.settings-detail .topbar > .page-heading:first-child { flex-wrap:wrap; gap:6
   .primary-nav .nav-item { min-height:40px; }
   .sidebar-footer { padding-top:12px; }
 }
+
+.bridge-permission-grid .bridge-self-management { grid-column: 1 / -1; }
+.desktop-module > .module-header { grid-template-columns: minmax(0, 1fr) auto; }
+.desktop-module > .module-header .status-badge { justify-self: end; }
+.bridge-connection-settings, .bridge-call-settings { margin: 16px 22px; min-width: 0; }

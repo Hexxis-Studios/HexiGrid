@@ -21,8 +21,8 @@ async function freePort() {
   return port;
 }
 
-async function runChild(args, env, timeoutMs = 12_000) {
-  const child = spawn(process.execPath, [companionScript, ...args], { cwd: root, env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+async function runChild(args, env, timeoutMs = 12_000, script = companionScript) {
+  const child = spawn(process.execPath, [script, ...args], { cwd: path.dirname(script), env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let stdout = ''; let stderr = '';
   child.stdout.setEncoding('utf8').on('data', (chunk) => { stdout += chunk; });
   child.stderr.setEncoding('utf8').on('data', (chunk) => { stderr += chunk; });
@@ -42,6 +42,20 @@ test('real owner server and shipped companion resume queued messages through res
   const fakeCodexPrompt = path.join(dataDir, 'codex-relay-prompt.json');
   const fakeCodexBusy = path.join(dataDir, 'codex-relay-busy');
   const fakeCodexCommand = path.join(dataDir, process.platform === 'win32' ? 'fake-codex.cmd' : 'fake-codex');
+  const fakeVaultScript = path.join(dataDir, 'fake-platform-vault.mjs');
+  const persistentVaultDir = path.join(dataDir, 'persistent-agent-vault');
+  await fs.mkdir(persistentVaultDir);
+  await fs.writeFile(fakeVaultScript, `import { promises as fs } from 'node:fs'; import path from 'node:path';
+const [root, operation, ...args] = process.argv.slice(2);
+const alias = args.find(value => value.startsWith('--alias='))?.slice(8);
+if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]+$/.test(alias || '')) process.exit(2);
+if (operation === 'put' && /[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i.test(alias)) { process.stderr.write('alias must not itself look like a credential'); process.exit(1); }
+const file = path.join(root, alias);
+if (operation === 'put') { let value = ''; for await (const chunk of process.stdin) value += chunk; await fs.writeFile(file, value, { mode: 0o600 }); }
+else if (operation === 'get') { try { process.stdout.write(JSON.stringify({ value: await fs.readFile(file, 'utf8') })); } catch { process.exitCode = 1; } }
+else if (operation === 'revoke') await fs.rm(file, { force: true });
+else process.exitCode = 2;
+`);
   const fakeCodexHome = path.join(dataDir, 'codex-home');
   const fakeDesktopServer = path.join(fakeCodexHome, 'plugins', 'cache', 'openai-bundled', 'codex-app-tools', '0.0.0-test', 'server.mjs');
   await fs.mkdir(path.dirname(fakeDesktopServer), { recursive: true });
@@ -183,21 +197,47 @@ process.stdin.setEncoding('utf8').on('data', (chunk) => {
   assert.equal(relay.body.agentRelay.relayProvider, 'configured-reverse-proxy');
   const invited = await ownerCall('/api/agent-links/invites', 'POST', { capabilities: ['messages', 'status', 'memory-read'] });
   assert.equal(invited.status, 201, JSON.stringify(invited.body));
-  const companion = new OutboundCompanionConnection({ inviteUrl: invited.body.companionInvitationUrl, capabilities: ['messages', 'status', 'memory-read'], automaticControl: false });
-  await companion.connect();
-  const paired = await companion.pair({ name: 'Isolated companion QA', framework: 'test', externalId: 'companion-server-e2e' });
-  await companion.close();
-  const connectionId = paired.connection.id;
+  assert.ok(invited.body.agentPrompt.includes(invited.body.companionInvitationUrl));
+  assert.match(invited.body.agentPrompt, /saved credential and connection are reusable/);
+  const skillResponse = await fetch(`${origin}/agent-link/skill`);
+  assert.equal(skillResponse.status, 200);
+  const bundle = await skillResponse.json();
+  const installed = path.join(agentHome, 'downloaded-skill');
+  for (const file of bundle.files) {
+    assert.equal(crypto.createHash('sha256').update(file.content).digest('hex'), file.sha256);
+    assert.ok(!file.path.includes('..') && !path.isAbsolute(file.path));
+    const destination = path.join(installed, file.path);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.writeFile(destination, file.content);
+  }
+  const downloadedScript = path.join(installed, 'scripts', 'companion_client.mjs');
+  const agentEnv = { ...process.env, USERPROFILE: agentHome, HOME: agentHome, PATH: agentHome,
+    HEXIGRID_LINK_SECRET_COMMAND: JSON.stringify([process.execPath, fakeVaultScript, persistentVaultDir]) };
+  const pairCommand = ['pair', '--ephemeral', '--invite', invited.body.companionInvitationUrl, '--name', 'Isolated companion QA', '--framework', 'test', '--external-id', 'companion-server-e2e'];
+  const firstPair = await runChild(pairCommand, agentEnv, 12_000, downloadedScript);
+  assert.equal(firstPair.exitCode, 0, firstPair.stderr);
+  assert.equal(firstPair.reports[0].saved, true);
+  assert.equal(firstPair.reports[0].storage, 'platform-vault');
+  assert.match(firstPair.reports[0].nextCommand, /status --connection/);
+  const connectionId = firstPair.reports[0].connectionId;
   const configDir = path.join(agentHome, '.hexigrid-link');
   const vaultDir = path.join(configDir, 'vault');
-  await fs.mkdir(vaultDir, { recursive: true });
-  const alias = `hexigrid-link-${connectionId}`;
-  await fs.writeFile(path.join(vaultDir, alias), paired.token, { mode: 0o600 });
   const configFile = path.join(configDir, `${connectionId}.json`);
-  await fs.writeFile(configFile, JSON.stringify({ mode: 'outbound-companion', connectionId, origin: new URL(invited.body.companionInvitationUrl).origin,
-    inviteId: companion.invitation.inviteId, deviceId: companion.invitation.deviceId, clientDeviceId: companion.clientDeviceId,
-    tokenAlias: alias, lastSequence: 0 }), { mode: 0o600 });
-  const agentEnv = { ...process.env, USERPROFILE: agentHome, HOME: agentHome };
+  const alias = JSON.parse(await fs.readFile(configFile, 'utf8')).tokenAlias;
+  const paired = { connection: { id: connectionId, agentId: firstPair.reports[0].orientation.connection.agentId }, token: await fs.readFile(path.join(persistentVaultDir, alias), 'utf8') };
+  assert.equal(JSON.stringify(firstPair.reports).includes(paired.token), false);
+  const spent = await runChild(pairCommand, agentEnv, 12_000, downloadedScript);
+  assert.equal(spent.exitCode, 1, 'the invitation cannot create another pairing');
+  await fs.rm(agentHome, { recursive: true, force: true });
+  for (const file of bundle.files) {
+    const destination = path.join(installed, file.path);
+    await fs.mkdir(path.dirname(destination), { recursive: true });
+    await fs.writeFile(destination, file.content);
+  }
+  const stillPaired = await runChild(['status', '--connection', connectionId], agentEnv, 12_000, downloadedScript);
+  assert.equal(stillPaired.exitCode, 0, `the reset sandbox resumes from protected vault: ${stillPaired.stderr}`);
+  const scopedChange = await agentCall(paired.token, '/agent-link/v1/capabilities', 'POST', { capabilities: ['messages', 'camera-view'] });
+  assert.equal(scopedChange.status, 403, 'a scoped agent cannot grant itself camera access');
 
   const codexRelay = await ownerCall('/api/settings', 'PATCH', { codexRelay: {
     enabled: true, linkId: connectionId, threadId: 'thread-companion-e2e', forwardReplies: true
@@ -288,15 +328,54 @@ process.stdin.setEncoding('utf8').on('data', (chunk) => {
   assert.equal(scopedRead.status, 403);
   const namedWhileScoped = await agentCall(paired.token, '/agent-link/v1/messages', 'POST', { clientMessageId: 'codex-named-scoped', text: 'Do not deliver.', metadata: { codexThreadName: 'Direct named QA' } });
   assert.equal(namedWhileScoped.status, 403);
+  const cameraScopes = ['messages', 'status', 'memory-read', 'camera-view'];
+  assert.equal((await ownerCall(`/api/agent-links/${connectionId}/capabilities`, 'PATCH', { capabilities: cameraScopes, approved: true })).status, 200);
+  assert.equal((await ownerCall('/api/desktop-bridge/start', 'POST', { linkId: connectionId, viewGranted: true, cameraGranted: true, approved: true })).status, 403, 'camera does not authorize screen sharing');
+  const cameraSession = await ownerCall('/api/desktop-bridge/start', 'POST', { linkId: connectionId, viewGranted: false, cameraGranted: true, approved: true });
+  assert.equal(cameraSession.status, 200, JSON.stringify(cameraSession.body));
+  assert.equal(cameraSession.body.bridge.viewGranted, false);
+  const frame = { mimeType: 'image/jpeg', data: 'eA==', width: 1, height: 1 };
+  assert.equal((await ownerCall('/api/desktop-bridge/media/camera', 'POST', frame)).status, 202);
+  const freshFrame = agentCall(paired.token, '/agent-link/v1/desktop/media', 'POST', { freshCamera: true });
+  await new Promise(resolve => setTimeout(resolve, 80));
+  assert.equal((await ownerCall('/api/desktop-bridge/media/camera', 'POST', { ...frame, data: 'eQ==' })).status, 202);
+  const observation = await freshFrame;
+  assert.equal(observation.status, 200, JSON.stringify(observation.body));
+  assert.equal(observation.body.freshCamera, true);
+  assert.equal(observation.body.camera.data, 'eQ==', 'only the newly published frame is returned');
+  const snapshotCommand = runChild(['camera-snapshot', '--connection', connectionId], agentEnv, 12_000, downloadedScript);
+  const cameraTimer = setInterval(() => { void ownerCall('/api/desktop-bridge/media/camera', 'POST', frame).catch(() => {}); }, 100);
+  let snapshotResult;
+  try { snapshotResult = await snapshotCommand; }
+  finally { clearInterval(cameraTimer); }
+  assert.equal(snapshotResult.exitCode, 0, snapshotResult.stderr);
+  const snapshot = snapshotResult.reports[0].snapshot;
+  assert.ok(snapshot.file.startsWith(os.tmpdir()));
+  try { assert.equal((await fs.readFile(snapshot.file)).toString(), 'x'); }
+  finally { await fs.rm(path.dirname(snapshot.file), { recursive: true, force: true }); }
+  assert.equal((await fs.stat(snapshot.file).catch(() => null)), null, 'temporary observation is removed after inspection');
+  await ownerCall('/api/desktop-bridge/stop', 'POST', {});
   const ownerTrust = await ownerCall(`/api/agent-links/${connectionId}/trust`, 'PATCH', { trustLevel: 'owner', approved: true });
   assert.equal(ownerTrust.status, 200, JSON.stringify(ownerTrust.body));
   assert.equal(ownerTrust.body.connection.trustLevel, 'owner');
   const beforeSession = await agentCall(paired.token, '/agent-link/v1/owner/fs/list', 'POST', { path: dataDir });
   assert.equal(beforeSession.status, 403);
-  const ownerScopes = await ownerCall(`/api/agent-links/${connectionId}/capabilities`, 'PATCH', { capabilities: [...ownerTrust.body.connection.capabilities, 'desktop-view', 'desktop-control'], approved: true });
+  const ownerScopes = await ownerCall(`/api/agent-links/${connectionId}/capabilities`, 'PATCH', { capabilities: [...new Set([...ownerTrust.body.connection.capabilities, 'desktop-view', 'desktop-control', 'camera-view'])], approved: true });
   assert.equal(ownerScopes.status, 200, JSON.stringify(ownerScopes.body));
-  const session = await ownerCall('/api/desktop-bridge/start', 'POST', { linkId: connectionId, viewGranted: true, controlGranted: true, approved: true });
+  const session = await ownerCall('/api/desktop-bridge/start', 'POST', { linkId: connectionId, viewGranted: true, controlGranted: true, cameraGranted: true, approved: true });
   assert.equal(session.status, 200, JSON.stringify(session.body));
+  const stoppedByClient = await runChild(['desktop-stop', '--connection', connectionId], agentEnv, 12_000, downloadedScript);
+  assert.equal(stoppedByClient.exitCode, 0, stoppedByClient.stderr);
+  const resumedByClient = await runChild(['desktop-start', '--connection', connectionId], agentEnv, 12_000, downloadedScript);
+  assert.equal(resumedByClient.exitCode, 0, resumedByClient.stderr);
+  assert.equal(resumedByClient.reports[0].result.bridge.linkId, connectionId);
+  assert.equal(resumedByClient.reports[0].result.bridge.enabled, true);
+  const pausedCamera = await agentCall(paired.token, '/agent-link/v1/capabilities', 'POST', { capabilities: ownerScopes.body.connection.capabilities.filter(scope => scope !== 'camera-view') });
+  assert.equal(pausedCamera.status, 200, JSON.stringify(pausedCamera.body));
+  assert.equal(pausedCamera.body.connection.selfManageableCapabilities.includes('camera-view'), true);
+  const resumedCamera = await agentCall(paired.token, '/agent-link/v1/capabilities', 'POST', { capabilities: ownerScopes.body.connection.capabilities });
+  assert.equal(resumedCamera.status, 200, JSON.stringify(resumedCamera.body));
+  assert.equal(resumedCamera.body.mediaGrantActivation['camera-view'].enabled, true);
   const data = Buffer.from([0, 255, 32, 10]);
   const created = await agentCall(paired.token, '/agent-link/v1/owner/fs/write', 'POST', { path: ownerFile, data: data.toString('base64'), createOnly: true });
   assert.equal(created.status, 200, JSON.stringify(created.body));
@@ -368,6 +447,7 @@ process.stdin.setEncoding('utf8').on('data', (chunk) => {
   await targetCompanion.close();
   const targetLinkId = targetPair.connection.id;
   const targetAlias = `hexigrid-link-${targetLinkId}`;
+  await fs.mkdir(vaultDir, { recursive: true });
   await fs.writeFile(path.join(vaultDir, targetAlias), targetPair.token, { mode: 0o600 });
   await fs.writeFile(path.join(configDir, `${targetLinkId}.json`), JSON.stringify({ mode: 'outbound-companion', connectionId: targetLinkId,
     origin: new URL(targetInvite.body.companionInvitationUrl).origin, inviteId: targetCompanion.invitation.inviteId,

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HexiGrid Agent Practice</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.5 system-ui, sans-serif; background: #11131c; color: #f2f3fa; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; }
+    main { max-width: 1080px; margin: auto; padding: clamp(16px, 4vw, 40px); }
+    h1 { font-size: clamp(24px, 4vw, 34px); margin: 0 0 8px; }
+    h2 { font-size: 19px; margin: 0 0 16px; }
+    p { margin: 0 0 16px; color: #bfc4d6; }
+    .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 24px; align-items: start; }
+    section { background: #1a1e2b; border: 1px solid #353d54; border-radius: 12px; padding: 22px; min-width: 0; }
+    label { display: block; margin-bottom: 16px; font-weight: 600; }
+    input:not([type="checkbox"]), select, textarea { display: block; width: 100%; margin-top: 6px; padding: 10px 12px; border: 1px solid #6d7690; border-radius: 6px; background: #101421; color: inherit; font: inherit; }
+    textarea { min-height: 100px; resize: vertical; }
+    input[type="checkbox"] { width: 20px; height: 20px; accent-color: #a99aff; }
+    .check { display: flex; align-items: center; gap: 10px; }
+    .actions { display: flex; flex-wrap: wrap; gap: 10px; }
+    button { border: 1px solid #7e89a9; border-radius: 6px; background: #30374d; color: #fff; padding: 10px 16px; min-height: 44px; font: inherit; cursor: pointer; }
+    button.primary { background: #b8a8ff; color: #181127; border-color: #b8a8ff; font-weight: 700; }
+    :focus-visible { outline: 3px solid #dfcfff; outline-offset: 3px; }
+    ol { padding-left: 24px; margin: 0; }
+    li { margin-bottom: 13px; padding-left: 4px; overflow-wrap: anywhere; }
+    li[data-complete="true"] { color: #92e5bd; }
+    li[data-complete="true"]::marker { content: "✓  "; }
+    code { color: #dfd6ff; font: 0.94em/1.5 ui-monospace, monospace; overflow-wrap: anywhere; }
+    #progress { font-weight: 700; color: #dfd6ff; }
+    #status { margin: 16px 0 0; color: #e6e9f6; }
+    .saved { margin-top: 24px; }
+    dl { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+    dt { color: #bfc4d6; }
+    dd { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; min-width: 0; }
+    dialog { width: min(420px, calc(100% - 32px)); border: 1px solid #7e89a9; border-radius: 12px; background: #1a1e2b; color: inherit; padding: 24px; }
+    dialog::backdrop { background: #000a; }
+    @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } section { padding: 18px; } }
+    @media (max-width: 400px) { dl { grid-template-columns: 1fr; gap: 4px; } dd { margin-bottom: 8px; } }
+  </style>
+  <script src="/practice.js" defer></script>
+</head>
+<body>
+<main>
+  <h1>Agent practice</h1>
+  <p>Disposable test data only. Changes stay on this page until it is reloaded. This page cannot access HexiGrid accounts, files or tools.</p>
+  <div class="layout">
+    <section aria-labelledby="formTitle">
+      <h2 id="formTitle">Practice record</h2>
+      <form id="practiceForm" autocomplete="off">
+        <label for="recordName">Record name<input id="recordName" name="recordName" required maxlength="80"></label>
+        <label for="category">Category<select id="category" name="category"><option>Personal</option><option>Work</option><option>Practice</option></select></label>
+        <label for="quantity">Quantity<input id="quantity" name="quantity" type="number" min="1" max="9" value="1" required></label>
+        <label class="check" for="ready"><input id="ready" name="ready" type="checkbox">Mark ready</label>
+        <label for="notes">Notes<textarea id="notes" name="notes" maxlength="300"></textarea></label>
+        <div class="actions"><button class="primary" type="submit">Save record</button><button id="resetRecord" type="button">Reset record</button></div>
+      </form>
+      <p id="status" role="status" aria-live="polite">No record saved.</p>
+    </section>
+    <section aria-labelledby="taskTitle">
+      <h2 id="taskTitle">Computer-control task</h2>
+      <p>Use HexiGrid screen/UI inspection and mouse/keyboard tools. Do not complete this test with scripts, browser developer tools or direct page code.</p>
+      <p id="progress" role="status" aria-live="polite">0 of 8 steps complete</p>
+      <ol id="checklist">
+        <li data-step="name">Enter record name <code>HEXIGRID-QA</code>.</li>
+        <li data-step="category">Choose category <code>Practice</code>.</li>
+        <li data-step="quantity">Set quantity to <code>3</code>.</li>
+        <li data-step="ready">Check <strong>Mark ready</strong>.</li>
+        <li data-step="notes">Enter notes <code>Keyboard and mouse test only.</code></li>
+        <li data-step="save">Click <strong>Save record</strong>. Verify every value under Saved record.</li>
+        <li data-step="cancel">Click <strong>Reset record</strong>, then <strong>Cancel</strong>. Verify the saved record remains.</li>
+        <li data-step="reset">Click <strong>Reset record</strong> again, then <strong>Reset test data</strong>. Verify the fields and saved record clear.</li>
+      </ol>
+    </section>
+  </div>
+  <section class="saved" aria-labelledby="savedTitle">
+    <h2 id="savedTitle">Saved record</h2>
+    <p id="emptyRecord">No saved record.</p>
+    <dl id="savedRecord" hidden>
+      <dt>Record name</dt><dd id="savedName"></dd>
+      <dt>Category</dt><dd id="savedCategory"></dd>
+      <dt>Quantity</dt><dd id="savedQuantity"></dd>
+      <dt>Ready</dt><dd id="savedReady"></dd>
+      <dt>Notes</dt><dd id="savedNotes"></dd>
+    </dl>
+  </section>
+</main>
+<dialog id="resetDialog" aria-labelledby="resetTitle" aria-describedby="resetDescription">
+  <h2 id="resetTitle">Reset this practice record?</h2>
+  <p id="resetDescription">This clears only the form and saved record on this practice page.</p>
+  <div class="actions"><button id="cancelReset" type="button" autofocus>Cancel</button><button id="confirmReset" type="button">Reset test data</button></div>
+</dialog>
+</body>
+</html>

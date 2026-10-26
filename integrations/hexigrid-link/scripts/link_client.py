@@ -8,6 +8,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -91,15 +92,61 @@ def config_path(connection: str) -> Path:
     return CONFIG_DIR / f"{connection}.json"
 
 
+def alias_label(connection: str) -> str:
+    config_path(connection)
+    words = ("an", "at", "be", "by", "do", "go", "he", "if", "in", "is", "it", "me", "my", "no", "of", "on")
+    return ".".join(words[int(digit, 16)] for digit in hashlib.sha256(connection.encode("utf-8")).hexdigest()[:32])
+
+
+def credential_alias(connection: str) -> str:
+    return f"hexigrid-link.token.{alias_label(connection)}"
+
+
+def routing_alias(connection: str) -> str:
+    return f"hexigrid-link.routing.{alias_label(connection)}"
+
+
+def record_routing_alias(record: dict) -> str:
+    connection = record["connectionId"]
+    return f"hexigrid-link-routing-{connection}" if record_alias(record) == f"hexigrid-link-{connection}" else routing_alias(connection)
+
+
 def save_config(record: dict) -> None:
-    CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-    target = config_path(record["connectionId"]); target.write_text(json.dumps(record, indent=2), encoding="utf-8")
-    try: os.chmod(target, 0o600)
-    except OSError: pass
+    if any(key in record for key in ("token", "secret", "credential", "inviteSecret")):
+        raise RuntimeError("Credentials cannot be written into routing metadata")
+    if record.get("storage") == "platform-vault":
+        serialized = json.dumps(record, separators=(",", ":"))
+        alias = record_routing_alias(record)
+        secret_cli("put", f"--alias={alias}", "--value-from=-", "--kind=HexiGrid Link routing", stdin=serialized)
+        try: restored = json.loads(extract_secret_value(secret_cli("get", f"--alias={alias}")))
+        except ValueError: raise RuntimeError("The protected vault did not retain the connection details") from None
+        if restored != record:
+            raise RuntimeError("The protected vault did not retain the connection details")
+    try:
+        CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        target = config_path(record["connectionId"])
+        descriptor = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(record, indent=2))
+        os.chmod(target, 0o600)
+    except OSError:
+        if record.get("storage") != "platform-vault": raise
 
 
 def load_config(connection: str) -> dict:
-    return json.loads(config_path(connection).read_text(encoding="utf-8"))
+    cached = None
+    try: cached = json.loads(config_path(connection).read_text(encoding="utf-8"))
+    except (OSError, ValueError): pass
+    if cached and cached.get("storage") != "platform-vault": return cached
+    for alias, token_alias in ((routing_alias(connection), credential_alias(connection)), (f"hexigrid-link-routing-{connection}", f"hexigrid-link-{connection}")):
+        try:
+            record = json.loads(extract_secret_value(secret_cli("get", f"--alias={alias}")))
+            if record.get("connectionId") != connection or record.get("tokenAlias") != token_alias or record.get("mode") not in ("direct-https", "outbound-companion") or not record.get("origin"):
+                raise ValueError()
+            return {**record, "storage": "platform-vault"}
+        except (RuntimeError, ValueError): pass
+    if cached: return cached
+    raise RuntimeError("No readable saved connection was found. Check the protected vault before requesting another invitation; temporary storage failure is not a lost credential") from None
 
 
 def record_origin(record: dict) -> str:
@@ -116,26 +163,92 @@ def vault_path(alias: str) -> Path:
 
 
 def secret_cli(*args: str, stdin: str | None = None) -> str:
-    try: completed = subprocess.run(["ilands", "secret", *args], input=stdin, text=True, capture_output=True, check=False)
-    except FileNotFoundError: raise RuntimeError("The protected iLands secret command is unavailable; use HexiGrid's browser pairing fallback") from None
-    if completed.returncode != 0: raise RuntimeError(completed.stderr.strip() or "The protected iLands secret command failed")
+    try: command = json.loads(os.environ.get("HEXIGRID_LINK_SECRET_COMMAND", '["ilands","secret"]'))
+    except ValueError: raise RuntimeError("The platform secret helper command must be a JSON argument list") from None
+    if not isinstance(command, list) or not command or any(not isinstance(part, str) or not part or "\0" in part for part in command):
+        raise RuntimeError("The platform secret helper command is invalid")
+    try: completed = subprocess.run([*command, *args], input=stdin, text=True, capture_output=True, check=False, timeout=10)
+    except FileNotFoundError:
+        error = RuntimeError("The platform secret store is unavailable")
+        error.store_unavailable = True
+        raise error from None
+    except (OSError, subprocess.TimeoutExpired) as cause:
+        error = RuntimeError("The platform secret store could not complete the request; inspect the captured failure locally")
+        error.code, error.operation = "SECRET_STORE_OPERATION_FAILED", args[0]
+        error.provider_diagnostic = {"stdout": getattr(cause, "stdout", None), "stderr": getattr(cause, "stderr", None)}
+        raise error from None
+    if completed.returncode != 0:
+        error = RuntimeError("The platform secret store could not complete the request; inspect the captured failure locally without publishing provider output")
+        error.code, error.operation, error.exit_code = "SECRET_STORE_OPERATION_FAILED", args[0], completed.returncode
+        error.provider_diagnostic = {"stdout": completed.stdout, "stderr": completed.stderr}
+        raise error
     return completed.stdout.strip()
 
 
-def extract_secret(value):
-    if isinstance(value, str) and len(value) >= 32: return value
+def extract_secret_value(raw: str) -> str:
+    try: value = json.loads(raw)
+    except json.JSONDecodeError: return raw
+    if isinstance(value, str): return value
     if isinstance(value, dict):
-        for item in value.values():
-            found = extract_secret(item)
-            if found: return found
-    return None
+        if "details" in value:
+            details = value["details"]
+            payload = details.get("payload") if isinstance(details, dict) else None
+            if value.get("isError") is not True and isinstance(details, dict) and str(details.get("status", "")).lower() not in ("not_found", "error", "failed", "denied", "revoked") and isinstance(payload, dict) and isinstance(payload.get("value"), str):
+                return payload["value"]
+            raise RuntimeError("The protected secret response format is unsupported; no values were disclosed")
+        if value.get("connectionId") and value.get("mode"): return raw
+        for key in ("value", "secret", "token", "content", "data"):
+            if isinstance(value.get(key), str): return value[key]
+            if isinstance(value.get(key), dict): return extract_secret_value(json.dumps(value[key]))
+    raise RuntimeError("The protected secret response format is unsupported; no values were disclosed")
+
+
+def check_storage(args) -> str:
+    requires_durable_store = getattr(args, "ephemeral", False) or re.match(r"^i[\s_-]*lands(?:\b|[\s_-])", str(getattr(args, "framework", "")), re.I)
+    connection_id = f"link-{uuid.uuid4()}"
+    alias = credential_alias(connection_id)
+    route_alias = routing_alias(connection_id)
+    value = b64url(os.urandom(32))
+    route = {"mode": "direct-https", "connectionId": connection_id, "origin": "https://example.invalid", "tokenAlias": alias, "storage": "platform-vault", "clientDeviceId": f"companion-device-{uuid.uuid4()}", "lastSequence": 0, "capabilities": []}
+    stage = "credential-write"
+    try:
+        secret_cli("put", f"--alias={alias}", "--value-from=-", "--kind=HexiGrid Link token", "--usage-hint=Disposable connection-storage check", stdin=value)
+        stage = "credential-read"
+        if extract_secret_value(secret_cli("get", f"--alias={alias}")) != value:
+            raise RuntimeError("The protected vault failed its storage check; the invitation has not been used")
+        stage = "routing-write"
+        secret_cli("put", f"--alias={route_alias}", "--value-from=-", "--kind=HexiGrid Link routing", "--usage-hint=Disposable connection-storage check", stdin=json.dumps(route))
+        stage = "routing-read"
+        if json.loads(extract_secret_value(secret_cli("get", f"--alias={route_alias}"))) != route:
+            raise RuntimeError("The protected vault failed its routing storage check; the invitation has not been used")
+        return "platform-vault"
+    except RuntimeError as error:
+        error.stage = stage
+        if not getattr(error, "store_unavailable", False): raise
+        if requires_durable_store: raise RuntimeError("This runtime rebuilds its files and has no supported persistent secret store. The invitation has not been used; do not fall back to files or browser pairing") from None
+        CONFIG_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
+        probe = CONFIG_DIR / f"{alias}.tmp"
+        try:
+            with probe.open("x", encoding="utf-8") as stream: stream.write(value)
+            if probe.read_text(encoding="utf-8") != value: raise RuntimeError("Local connection storage could not be verified")
+        finally: probe.unlink(missing_ok=True)
+        return "private-local-profile"
+    finally:
+        for probe in (alias, route_alias):
+            try: secret_cli("revoke", f"--alias={probe}")
+            except RuntimeError: pass
+
+
+def storage_check(args) -> None:
+    storage = check_storage(args)
+    print(json.dumps({"ok": True, "storage": storage, "credentialAndRouting": "vault-backed" if storage == "platform-vault" else "requires-persistent-local-profile", "invitationUsed": False}))
 
 
 def get_token(alias: str) -> str:
     try:
         raw = secret_cli("get", f"--alias={alias}")
-        try: token = extract_secret(json.loads(raw))
-        except json.JSONDecodeError: token = raw if len(raw) >= 32 else None
+        token = extract_secret_value(raw)
+        if not 32 <= len(token) <= 256 or any(char not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for char in token): raise RuntimeError("The protected credential format is invalid")
     except RuntimeError as primary:
         target = vault_path(alias)
         try:
@@ -143,19 +256,37 @@ def get_token(alias: str) -> str:
                 raise RuntimeError("The fallback token file permissions are not private")
             token = target.read_text(encoding="utf-8").strip()
         except (OSError, RuntimeError) as fallback:
-            raise RuntimeError(f"{primary}. {fallback}") from None
+            raise RuntimeError("The saved credential is not readable. Check the protected vault without displaying values; do not re-pair on a temporary vault failure") from None
     if not token: raise RuntimeError("The HexiGrid Link token is unavailable in the protected secret store")
     return token
 
 
-def save_token(alias: str, token: str) -> None:
+def save_token(alias: str, token: str, require_platform: bool = False) -> None:
     try:
         secret_cli("put", f"--alias={alias}", "--value-from=-", "--kind=HexiGrid Link token", "--usage-hint=Use only with the paired HexiGrid origin", stdin=token)
-    except RuntimeError:
+        if extract_secret_value(secret_cli("get", f"--alias={alias}")) != token:
+            raise RuntimeError("The protected vault did not retain the credential")
+    except RuntimeError as error:
+        if require_platform or not getattr(error, "store_unavailable", False): raise
         VAULT_DIR.mkdir(mode=0o700, parents=True, exist_ok=True)
         target = vault_path(alias); target.write_text(token, encoding="utf-8")
         try: os.chmod(target, 0o600)
         except OSError: pass
+
+
+def storage_status(args) -> None:
+    config_path(args.connection)
+    record = None
+    routing_readable = credential_readable = False
+    try: record = load_config(args.connection); routing_readable = True
+    except (RuntimeError, OSError, ValueError): pass
+    for alias in (record_alias(record),) if record else (credential_alias(args.connection), f"hexigrid-link-{args.connection}"):
+        try:
+            credential_readable = bool(get_token(alias))
+            if credential_readable: break
+        except (RuntimeError, OSError, ValueError): pass
+    code = "SAVED_CONNECTION_READABLE" if routing_readable and credential_readable else "CONNECTION_STORAGE_UNREADABLE" if not routing_readable and not credential_readable else "CREDENTIAL_STORAGE_UNREADABLE" if routing_readable else "ROUTING_STORAGE_UNREADABLE"
+    print(json.dumps({"ok": routing_readable and credential_readable, "connectionId": args.connection, "routingReadable": routing_readable, "credentialReadable": credential_readable, "code": code, "invitationUsed": False}))
 
 
 def context(connection: str):
@@ -166,10 +297,17 @@ def context(connection: str):
             "node scripts/companion_client.mjs; the public relay intentionally does not expose "
             "the direct-HTTPS /agent-link/v1 routes."
         )
-    return record, get_token(record_alias(record))
+    token = get_token(record_alias(record))
+    if not record.get("storage"):
+        try:
+            if extract_secret_value(secret_cli("get", f"--alias={record_alias(record)}")) == token:
+                record["storage"] = "platform-vault"; save_config(record)
+        except RuntimeError: pass
+    return record, token
 
 
 def pair(args) -> None:
+    storage = check_storage(args)
     parsed = urllib.parse.urlparse(args.invite)
     if parsed.scheme not in ("https", "http") or (parsed.scheme == "http" and parsed.hostname not in ("localhost", "127.0.0.1", "::1")):
         raise RuntimeError("The invitation must use HTTPS except on the same computer")
@@ -177,11 +315,19 @@ def pair(args) -> None:
     if not invite_id or not invite_secret: raise RuntimeError("The invitation is incomplete")
     origin = f"{parsed.scheme}://{parsed.netloc}"
     client_device_id = f"companion-device-{uuid.uuid4()}"
-    result = request(origin, "/agent-link/v1/pair", "POST", payload={"inviteId": invite_id, "secret": invite_secret, "clientDeviceId": client_device_id, "identity": {"name": args.name, "framework": "ilands", "externalId": args.external_id, "version": "skill-1"}, "capabilities": CAPABILITIES})
-    connection = result["connection"]; token = result["token"]; alias = f"hexigrid-link-{connection['id']}"
-    save_token(alias, token)
-    save_config({"mode": "direct-https", "connectionId": connection["id"], "origin": origin, "tokenAlias": alias, "clientDeviceId": client_device_id, "lastSequence": 0, "capabilities": connection["capabilities"]})
-    print(json.dumps({"ok": True, "connectionId": connection["id"], "capabilities": connection["capabilities"], "orientation": result.get("orientation")}))
+    result = request(origin, "/agent-link/v1/pair", "POST", payload={"inviteId": invite_id, "secret": invite_secret, "clientDeviceId": client_device_id, "identity": {"name": args.name, "framework": args.framework, "externalId": args.external_id, "version": "skill-1"}, "capabilities": CAPABILITIES})
+    connection = result["connection"]; token = result["token"]; alias = credential_alias(connection['id'])
+    record = {"mode": "direct-https", "connectionId": connection["id"], "origin": origin, "tokenAlias": alias, "storage": storage, "clientDeviceId": client_device_id, "lastSequence": 0, "capabilities": connection["capabilities"]}
+    save_stage = "credential"
+    for attempt in range(3):
+        try:
+            save_stage = "credential"; save_token(alias, token, storage == "platform-vault")
+            save_stage = "routing"; save_config(record); break
+        except (RuntimeError, OSError):
+            if attempt < 2: continue
+            print(json.dumps({"ok": False, "paired": True, "saved": False, "connectionId": connection["id"], "storage": storage, "code": "CREDENTIAL_SAVE_FAILED" if save_stage == "credential" else "ROUTING_SAVE_FAILED", "error": "Connected, but the protected save failed. Do not report setup complete or reuse the invitation"}))
+            raise SystemExit(1)
+    print(json.dumps({"ok": True, "connectionId": connection["id"], "capabilities": connection["capabilities"], "storage": storage, "saved": True, "orientation": result.get("orientation")}))
 
 
 def orientation(args) -> None:
@@ -359,13 +505,17 @@ def desktop_input(args) -> None:
     post_command(args, "/agent-link/v1/desktop/input", {"input": payload})
 
 
+def desktop_start(args) -> None:
+    post_command(args, "/agent-link/v1/desktop/start", {})
+
+
 def desktop_stop(args) -> None:
     post_command(args, "/agent-link/v1/desktop/stop", {})
 
 
 def desktop_media(args) -> None:
     record, token = context(args.connection)
-    result = request(record_origin(record), "/agent-link/v1/desktop/media", "POST", token, {"afterCameraSequence": args.after_camera, "afterAudioSequence": args.after_audio, "afterSpeakerSequence": args.after_speaker})
+    result = request(record_origin(record), "/agent-link/v1/desktop/media", "POST", token, {"afterCameraSequence": 0 if args.fresh_camera else args.after_camera, "afterAudioSequence": args.after_audio, "afterSpeakerSequence": args.after_speaker, "freshCamera": args.fresh_camera})
     if not args.include_data:
         if result.get("camera"):
             result["camera"].pop("data", None)
@@ -392,7 +542,14 @@ def heartbeat(args) -> None:
 
 
 def forget(args) -> None:
-    record = load_config(args.connection); secret_cli("revoke", f"--alias={record_alias(record)}"); config_path(args.connection).unlink(missing_ok=True)
+    record = load_config(args.connection)
+    aliases = (record_alias(record), record_routing_alias(record)) if record.get("storage") == "platform-vault" else () if record.get("storage") else (record_alias(record),)
+    for alias in aliases:
+        try: secret_cli("revoke", f"--alias={alias}")
+        except RuntimeError as error:
+            if record.get("storage") == "platform-vault" or not getattr(error, "store_unavailable", False): raise
+    vault_path(record_alias(record)).unlink(missing_ok=True)
+    config_path(args.connection).unlink(missing_ok=True)
     print(json.dumps({"ok": True, "forgotten": args.connection}))
 
 
@@ -444,7 +601,9 @@ def main() -> None:
     command = commands.add_parser("avatar-portrait"); command.add_argument("--connection", required=True); command.add_argument("--image"); command.add_argument("--still", action="store_true"); command.set_defaults(run=portrait_update)
     command = commands.add_parser("avatar-read"); command.add_argument("--connection", required=True); command.set_defaults(run=avatar_read)
     command = commands.add_parser("avatar-update"); command.add_argument("--connection", required=True); command.add_argument("--file", required=True); command.set_defaults(run=avatar_update)
-    command = commands.add_parser("pair"); command.add_argument("--invite", required=True); command.add_argument("--name", required=True); command.add_argument("--external-id", default=""); command.set_defaults(run=pair)
+    command = commands.add_parser("storage-check"); command.add_argument("--ephemeral", action="store_true"); command.set_defaults(run=storage_check)
+    command = commands.add_parser("storage-status"); command.add_argument("--connection", required=True); command.set_defaults(run=storage_status)
+    command = commands.add_parser("pair"); command.add_argument("--invite", required=True); command.add_argument("--name", required=True); command.add_argument("--framework", default="external-agent"); command.add_argument("--external-id", default=""); command.add_argument("--ephemeral", action="store_true"); command.set_defaults(run=pair)
     command = commands.add_parser("listen"); command.add_argument("--connection", required=True); command.add_argument("--timeout", type=int, default=25); command.set_defaults(run=listen)
     command = commands.add_parser("events"); command.add_argument("--connection", required=True); command.add_argument("--after", type=int); command.add_argument("--wait-ms", type=int, default=0); command.set_defaults(run=events)
     command = commands.add_parser("history"); command.add_argument("--connection", required=True); command.add_argument("--before"); command.add_argument("--limit", type=int, default=100); command.set_defaults(run=history)
@@ -472,8 +631,9 @@ def main() -> None:
     command = commands.add_parser("continuity-request-status"); command.add_argument("--connection", required=True); command.add_argument("--request-id", required=True); command.set_defaults(run=continuity_request_status)
     command = commands.add_parser("desktop-frame"); command.add_argument("--connection", required=True); command.add_argument("--output", default="", help="Save the private PNG frame locally"); command.set_defaults(run=desktop_frame)
     command = commands.add_parser("desktop-input"); command.add_argument("--connection", required=True); command.add_argument("--json", required=True, help="One validated mouse.move, mouse.click, or key.press action"); command.set_defaults(run=desktop_input)
+    command = commands.add_parser("desktop-start"); command.add_argument("--connection", required=True); command.set_defaults(run=desktop_start)
     command = commands.add_parser("desktop-stop"); command.add_argument("--connection", required=True); command.set_defaults(run=desktop_stop)
-    command = commands.add_parser("desktop-media"); command.add_argument("--connection", required=True); command.add_argument("--after-camera", type=int, default=0); command.add_argument("--after-audio", type=int, default=0); command.add_argument("--after-speaker", type=int, default=0); command.add_argument("--include-data", action="store_true", help="Keep private camera/audio bytes in the response"); command.set_defaults(run=desktop_media)
+    command = commands.add_parser("desktop-media"); command.add_argument("--connection", required=True); command.add_argument("--fresh-camera", action="store_true", help="Capture a new frame instead of returning a cached observation"); command.add_argument("--after-camera", type=int, default=0); command.add_argument("--after-audio", type=int, default=0); command.add_argument("--after-speaker", type=int, default=0); command.add_argument("--include-data", action="store_true", help="Keep private camera/audio bytes in the response"); command.set_defaults(run=desktop_media)
     command = commands.add_parser("desktop-speaker"); command.add_argument("--connection", required=True); command.add_argument("--json", required=True, help="Base64 audio payload with mimeType, data, and optional durationMs"); command.set_defaults(run=desktop_speaker)
     command = commands.add_parser("heartbeat"); command.add_argument("--connection", required=True); command.add_argument("--after-audio", type=int, default=0); command.add_argument("--after-speaker", type=int, default=0); command.set_defaults(run=heartbeat)
     command = commands.add_parser("orientation", aliases=["status"]); command.add_argument("--connection", required=True); command.set_defaults(run=orientation)
@@ -481,7 +641,11 @@ def main() -> None:
     command = commands.add_parser("forget"); command.add_argument("--connection", required=True); command.set_defaults(run=forget)
     args = parser.parse_args()
     try: args.run(args)
-    except Exception as error: print(json.dumps({"ok": False, "error": str(error)}), file=sys.stderr); raise SystemExit(1)
+    except Exception as error:
+        if args.command == "storage-check":
+            print(json.dumps({"ok": False, "code": getattr(error, "code", "STORAGE_CHECK_FAILED"), "stage": getattr(error, "stage", "storage-setup"), "operation": getattr(error, "operation", None), "exitCode": getattr(error, "exit_code", None), "error": str(error), "invitationUsed": False}))
+        else: print(json.dumps({"ok": False, "error": str(error)}), file=sys.stderr)
+        raise SystemExit(1)
 
 
 if __name__ == "__main__": main()

@@ -11,6 +11,7 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
+import { isDeepStrictEqual } from 'node:util';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -59,37 +60,123 @@ function memoryContextBytes(flags) { if (flags['max-bytes'] === undefined) retur
 function memoryScopeBytes(flags) { const value = memoryContextBytes(flags); if (value < 1024) throw new Error('Memory scope byte budget must be 1024 to 32768.'); return value; }
 function validConnectionId(value) { return /^link-[A-Za-z0-9-]+$/.test(value) ? value : (() => { throw new Error('Invalid connection ID.'); })(); }
 function configPath(connectionId) { return path.join(CONFIG_DIR, `${validConnectionId(connectionId)}.json`); }
-async function readConfig(connectionId) { return JSON.parse(await fs.readFile(configPath(connectionId), 'utf8')); }
+function aliasLabel(connectionId) {
+  const words = ['an', 'at', 'be', 'by', 'do', 'go', 'he', 'if', 'in', 'is', 'it', 'me', 'my', 'no', 'of', 'on'];
+  // A public connection ID names the entry; the credential belongs only in its value.
+  return [...crypto.createHash('sha256').update(validConnectionId(connectionId)).digest('hex').slice(0, 32)].map(digit => words[parseInt(digit, 16)]).join('.');
+}
+function credentialAlias(connectionId) { return `hexigrid-link.token.${aliasLabel(connectionId)}`; }
+function routingAlias(connectionId) { return `hexigrid-link.routing.${aliasLabel(connectionId)}`; }
+function recordRoutingAlias(record) { return recordAlias(record) === `hexigrid-link-${record.connectionId}` ? `hexigrid-link-routing-${record.connectionId}` : routingAlias(record.connectionId); }
+async function readConfig(connectionId) {
+  let cached;
+  try { cached = JSON.parse(await fs.readFile(configPath(connectionId), 'utf8')); }
+  catch { /* A missing or damaged disposable cache can be recovered from the vault. */ }
+  if (cached && cached.storage !== 'platform-vault') return cached;
+  for (const [alias, tokenAlias] of [[routingAlias(connectionId), credentialAlias(connectionId)], [`hexigrid-link-routing-${connectionId}`, `hexigrid-link-${connectionId}`]]) {
+    try {
+      const record = JSON.parse(extractSecretValue(secretCli(['get', `--alias=${alias}`])));
+      if (record.connectionId !== connectionId || record.tokenAlias !== tokenAlias || !record.origin || record.mode !== 'outbound-companion') throw new Error();
+      recordOrigin(record);
+      return { ...record, storage: 'platform-vault' };
+    } catch { /* Retain read compatibility with the exact connection's old labels. */ }
+  }
+  if (cached) return cached;
+  throw Object.assign(new Error('No readable saved connection was found. Check this runtime\'s protected vault before requesting another invitation; temporary storage failure is not a lost credential. Replace the connection only if its details were never saved or were lost.'), { code: 'CONNECTION_STORAGE_UNAVAILABLE' });
+}
 async function writeConfig(record) {
-  await fs.mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
-  const destination = configPath(record.connectionId);
-  const temporary = `${destination}.${process.pid}.${crypto.randomUUID()}.tmp`;
+  if (['token', 'secret', 'credential', 'inviteSecret'].some(key => Object.hasOwn(record, key))) throw new Error('Credentials cannot be written into routing metadata.');
+  if (record.storage === 'platform-vault') {
+    const serialized = JSON.stringify(record);
+    const alias = recordRoutingAlias(record);
+    secretCli(['put', `--alias=${alias}`, '--value-from=-', '--kind=HexiGrid Link routing', '--usage-hint=Restore only this exact saved HexiGrid connection after a sandbox rebuild'], serialized);
+    if (!isDeepStrictEqual(JSON.parse(extractSecretValue(secretCli(['get', `--alias=${alias}`]))), JSON.parse(serialized))) throw new Error('The protected vault did not retain the connection details. Do not report setup as complete.');
+  }
   try {
-    await fs.writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
-    await fs.rename(temporary, destination);
-  } finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
+    await fs.mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    const destination = configPath(record.connectionId);
+    const temporary = `${destination}.${process.pid}.${crypto.randomUUID()}.tmp`;
+    try {
+      await fs.writeFile(temporary, `${JSON.stringify(record, null, 2)}\n`, { mode: 0o600 });
+      await fs.rename(temporary, destination);
+    } finally { await fs.rm(temporary, { force: true }).catch(() => {}); }
+  } catch (error) { if (record.storage !== 'platform-vault') throw error; }
 }
 const recordOrigin = (record) => normalizeCompanionRelayOrigin(record.origin || record.baseUrl || '');
 const recordAlias = (record) => String(record.tokenAlias || record.secretAlias || '');
 const vaultPath = (alias) => path.join(VAULT_DIR, String(alias).replace(/[^A-Za-z0-9._-]/g, '_'));
 
 function secretCli(args, input = undefined) {
-  const completed = spawnSync('ilands', ['secret', ...args], { input, encoding: 'utf8', windowsHide: true });
-  if (completed.error) throw new Error('The protected iLands secret command is unavailable; use HexiGrid browser pairing instead.');
-  if (completed.status !== 0) throw new Error(completed.stderr?.trim() || 'The protected iLands secret command failed.');
+  let command;
+  try { command = JSON.parse(process.env.HEXIGRID_LINK_SECRET_COMMAND || '["ilands","secret"]'); } catch { throw new Error('The platform secret helper command must be a JSON argument list.'); }
+  if (!Array.isArray(command) || !command.length || command.some(part => typeof part !== 'string' || !part || part.includes('\0'))) throw new Error('The platform secret helper command is invalid.');
+  const completed = spawnSync(command[0], [...command.slice(1), ...args], { input, encoding: 'utf8', windowsHide: true, shell: false, timeout: 10_000, maxBuffer: 256 * 1024 });
+  if (completed.error?.code === 'ENOENT') throw Object.assign(new Error('The platform secret store is unavailable.'), { code: 'SECRET_STORE_UNAVAILABLE' });
+  if (completed.error || completed.status !== 0) {
+    const error = Object.assign(new Error('The platform secret store could not complete the request. Inspect the captured failure locally; do not publish provider output.'), { code: 'SECRET_STORE_OPERATION_FAILED', operation: args[0], exitCode: completed.status, helperErrorCode: completed.error?.code, signal: completed.signal || undefined });
+    // Keep the native failure in memory for local diagnosis, out of serialized results.
+    Object.defineProperty(error, 'providerDiagnostic', { value: { stdout: completed.stdout || '', stderr: completed.stderr || '' } });
+    throw error;
+  }
   return completed.stdout.trim();
 }
 
-function extractSecret(value) {
-  if (typeof value === 'string' && value.length >= 32) return value;
-  if (value && typeof value === 'object') for (const item of Object.values(value)) { const found = extractSecret(item); if (found) return found; }
-  return '';
+function extractSecretValue(raw) {
+  let value;
+  try { value = JSON.parse(raw); } catch { return raw; }
+  if (typeof value === 'string') return value;
+  if (value && Object.hasOwn(value, 'details')) {
+    const details = value.details;
+    if (value.isError !== true && !['not_found', 'error', 'failed', 'denied', 'revoked'].includes(String(details?.status || '').toLowerCase()) && typeof details?.payload?.value === 'string') return details.payload.value;
+    throw new Error('The protected secret response format is not supported. No values were disclosed.');
+  }
+  if (value?.connectionId && value?.mode) return raw;
+  for (const key of ['value', 'secret', 'token', 'content', 'data']) {
+    if (typeof value?.[key] === 'string') return value[key];
+    if (value?.[key] && typeof value[key] === 'object') return extractSecretValue(JSON.stringify(value[key]));
+  }
+  throw new Error('The protected secret response format is not supported. No values were disclosed.');
+}
+
+async function checkStorage(flags = {}) {
+  const requiresDurableStore = Boolean(flags.ephemeral) || /^i[\s_-]*lands(?:\b|[\s_-])/i.test(String(flags.framework || ''));
+  const connectionId = `link-${crypto.randomUUID()}`;
+  const alias = credentialAlias(connectionId);
+  const routeAlias = routingAlias(connectionId);
+  const value = crypto.randomBytes(32).toString('base64url');
+  const route = { mode: 'outbound-companion', connectionId, origin: 'https://example.invalid', inviteId: `link-invite-${crypto.randomUUID()}`, deviceId: `device-${crypto.randomUUID()}`, clientDeviceId: `companion-device-${crypto.randomUUID()}`, tokenAlias: alias, storage: 'platform-vault', lastSequence: 0, lastAudioSequence: 0, lastSpeakerSequence: 0, capabilities: [] };
+  let stage = 'credential-write';
+  try {
+    secretCli(['put', `--alias=${alias}`, '--value-from=-', '--kind=HexiGrid Link token', '--usage-hint=Disposable connection-storage check'], value);
+    stage = 'credential-read';
+    if (extractSecretValue(secretCli(['get', `--alias=${alias}`])) !== value) throw new Error('The protected vault failed its storage check. The invitation has not been used.');
+    stage = 'routing-write';
+    secretCli(['put', `--alias=${routeAlias}`, '--value-from=-', '--kind=HexiGrid Link routing', '--usage-hint=Disposable connection-storage check'], JSON.stringify(route));
+    stage = 'routing-read';
+    if (!isDeepStrictEqual(JSON.parse(extractSecretValue(secretCli(['get', `--alias=${routeAlias}`]))), route)) throw new Error('The protected vault failed its routing storage check. The invitation has not been used.');
+    return 'platform-vault';
+  } catch (error) {
+    error.stage = stage;
+    if (error.code !== 'SECRET_STORE_UNAVAILABLE') throw error;
+    if (requiresDurableStore) throw new Error('This runtime rebuilds its files and has no supported persistent secret store. The invitation has not been used. Use a supported persistent connection; do not fall back to files or browser pairing.');
+    await fs.mkdir(CONFIG_DIR, { recursive: true, mode: 0o700 });
+    const probe = path.join(CONFIG_DIR, `${alias}.tmp`);
+    try { await fs.writeFile(probe, value, { mode: 0o600, flag: 'wx' }); if (await fs.readFile(probe, 'utf8') !== value) throw new Error('Local connection storage could not be verified.'); }
+    finally { await fs.rm(probe, { force: true }); }
+    return 'private-local-profile';
+  } finally {
+    for (const probe of [alias, routeAlias]) {
+      try { secretCli(['revoke', `--alias=${probe}`]); } catch { /* Only our own random probes are eligible for cleanup. */ }
+    }
+  }
 }
 
 async function getSecret(alias) {
   try {
     const raw = secretCli(['get', `--alias=${alias}`]);
-    try { return extractSecret(JSON.parse(raw)); } catch { return raw.length >= 32 ? raw : ''; }
+    const token = extractSecretValue(raw);
+    if (!/^[A-Za-z0-9_-]{32,256}$/.test(token)) throw new Error('The protected credential format is invalid.');
+    return token;
   } catch (error) {
     try {
       const target = vaultPath(alias); const stat = await fs.stat(target);
@@ -98,18 +185,33 @@ async function getSecret(alias) {
       if (token.length < 32) throw new Error('The fallback token file is invalid.');
       return token;
     } catch (fallbackError) {
-      throw new Error(`${error.message} ${fallbackError.message}`.trim());
+      throw Object.assign(new Error('The saved Link credential is not readable. Check the protected vault without displaying values; do not re-pair on a temporary vault failure.'), { code: 'CREDENTIAL_STORAGE_UNAVAILABLE' });
     }
   }
 }
 
-async function saveToken(alias, token) {
-  try { secretCli(['put', `--alias=${alias}`, '--value-from=-', '--kind=HexiGrid Link token', '--usage-hint=Use only with the paired HexiGrid origin'], token); }
-  catch {
+async function saveToken(alias, token, requirePlatform = false) {
+  try {
+    secretCli(['put', `--alias=${alias}`, '--value-from=-', '--kind=HexiGrid Link token', '--usage-hint=Use only with the paired HexiGrid origin'], token);
+    if (extractSecretValue(secretCli(['get', `--alias=${alias}`])) !== token) throw new Error('The protected vault did not retain the credential. Do not report setup as complete.');
+  } catch (error) {
+    if (requirePlatform || error.code !== 'SECRET_STORE_UNAVAILABLE') throw error;
     await fs.mkdir(VAULT_DIR, { recursive: true, mode: 0o700 });
     await fs.writeFile(vaultPath(alias), token, { mode: 0o600 });
     await fs.chmod(vaultPath(alias), 0o600).catch(() => {});
   }
+}
+
+async function connectionStorageStatus(connectionId) {
+  validConnectionId(connectionId);
+  let record, routingReadable = false, credentialReadable = false;
+  try { record = await readConfig(connectionId); routingReadable = true; } catch { /* Report readability only, never provider output. */ }
+  for (const alias of record ? [recordAlias(record)] : [credentialAlias(connectionId), `hexigrid-link-${connectionId}`]) {
+    try { credentialReadable = Boolean(await getSecret(alias)); if (credentialReadable) break; } catch { /* Missing and temporarily unavailable remain indistinguishable. */ }
+  }
+  return { ok: routingReadable && credentialReadable, connectionId, routingReadable, credentialReadable,
+    code: routingReadable && credentialReadable ? 'SAVED_CONNECTION_READABLE' : !routingReadable && !credentialReadable ? 'CONNECTION_STORAGE_UNREADABLE' : routingReadable ? 'CREDENTIAL_STORAGE_UNREADABLE' : 'ROUTING_STORAGE_UNREADABLE',
+    invitationUsed: false };
 }
 
 function output(value) { process.stdout.write(`${JSON.stringify(value)}\n`); }
@@ -117,14 +219,26 @@ function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 async function pair(flags) {
   const invite = requireFlag(flags, 'invite');
+  const storage = await checkStorage(flags);
   const client = new OutboundCompanionConnection({ inviteUrl: invite, capabilities: CAPABILITIES, automaticControl: false });
   const session = await client.connect();
   try {
     const result = await client.pair({ name: requireFlag(flags, 'name'), framework: String(flags.framework || 'external-agent'), externalId: String(flags['external-id'] || ''), version: 'companion-1' });
-    const connectionId = result.connection.id; const alias = `hexigrid-link-${connectionId}`;
-    await saveToken(alias, result.token);
-    await writeConfig({ mode: 'outbound-companion', connectionId, origin: client.invitation.origin, inviteId: client.invitation.inviteId, deviceId: client.invitation.deviceId, clientDeviceId: client.clientDeviceId, tokenAlias: alias, lastSequence: 0, lastAudioSequence: 0, lastSpeakerSequence: 0, capabilities: result.connection.capabilities });
-    output({ ok: true, transport: 'outbound-companion', connectionId, capabilities: result.connection.capabilities, orientation: result.orientation, relayPeer: session.peerId });
+    const connectionId = result.connection.id; const alias = credentialAlias(connectionId);
+    const record = { mode: 'outbound-companion', connectionId, origin: client.invitation.origin, inviteId: client.invitation.inviteId, deviceId: client.invitation.deviceId, clientDeviceId: client.clientDeviceId, tokenAlias: alias, storage, lastSequence: 0, lastAudioSequence: 0, lastSpeakerSequence: 0, capabilities: result.connection.capabilities };
+    let saveStage = 'credential';
+    for (let attempt = 0; ; attempt++) {
+      try { saveStage = 'credential'; await saveToken(alias, result.token, storage === 'platform-vault'); saveStage = 'routing'; await writeConfig(record); break; }
+      catch {
+        if (attempt < 2) continue;
+        output({ ok: false, paired: true, saved: false, connectionId, storage, code: saveStage === 'credential' ? 'CREDENTIAL_SAVE_FAILED' : 'ROUTING_SAVE_FAILED', error: 'Connected, but the protected connection save failed. Do not report setup as complete or reuse the invitation. Keep this runtime available for recovery.' });
+        process.exitCode = 1; return;
+      }
+    }
+    output({ ok: true, transport: 'outbound-companion', connectionId, capabilities: result.connection.capabilities, orientation: result.orientation, relayPeer: session.peerId,
+      saved: true, storage, persistence: storage === 'platform-vault' ? 'credential-and-routing-vault-readback-verified' : 'requires-this-local-profile-to-survive', nextCommand: `node scripts/companion_client.mjs status --connection ${connectionId}`,
+      backgroundCommand: `node scripts/companion_client.mjs watch --connection ${connectionId}`,
+      notice: 'Pairing is complete. Reuse this saved connection on later turns; do not reuse the invitation. Background watch is optional and must run in a supported persistent process.' });
   } finally { await client.close(); }
 }
 
@@ -134,6 +248,13 @@ async function openSaved(flags, { automaticControl = false } = {}) {
   if (!record.clientDeviceId) { record.clientDeviceId = `companion-device-${crypto.randomUUID()}`; await writeConfig(record); }
   const token = await getSecret(record.tokenAlias);
   if (!token) throw new Error('The HexiGrid Link token is unavailable in the protected secret store.');
+  if (!record.storage) {
+    try {
+      if (extractSecretValue(secretCli(['get', `--alias=${record.tokenAlias}`])) === token) {
+        record.storage = 'platform-vault'; await writeConfig(record);
+      }
+    } catch { /* A legacy local profile stays usable; no new durability claim. */ }
+  }
   const client = new OutboundCompanionConnection({ resume: { ...record, token }, automaticControl });
   await client.connect();
   return { record, token, client };
@@ -339,6 +460,30 @@ async function desktopMedia(flags) {
   } finally { await client.close(); }
 }
 
+async function cameraSnapshot(flags) {
+  const { record, client } = await openSaved(flags);
+  let temporaryDirectory;
+  try {
+    const result = await client.linkRequest('/agent-link/v1/desktop/media', { method: 'POST', body: { freshCamera: true } });
+    if (!result.ok) throw new Error(result.body?.error || 'A fresh camera frame is unavailable.');
+    const frame = result.body?.camera;
+    if (result.body.freshCamera !== true || !frame?.data || !(frame.sequence > 0) || !Number.isFinite(Date.parse(frame.capturedAt))) throw new Error('No new camera frame was returned. Do not describe an earlier image as current.');
+    temporaryDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'hexigrid-camera-'));
+    const extension = { 'image/jpeg': 'jpg', 'image/webp': 'webp' }[frame.mimeType];
+    if (!extension) throw new Error('The camera returned an unsupported image format.');
+    const file = path.join(temporaryDirectory, `snapshot.${extension}`);
+    await fs.writeFile(file, Buffer.from(frame.data, 'base64'), { flag: 'wx', mode: 0o600 });
+    record.lastCameraSequence = frame.sequence;
+    await writeConfig(record);
+    output({ ok: true, connectionId: record.connectionId, snapshot: { file, sequence: frame.sequence, capturedAt: frame.capturedAt, width: frame.width, height: frame.height },
+      temporary: true, cleanup: 'Inspect this exact file, then delete it and its temporary directory in a finally block. Never put the image in memory or reuse it for a later observation.' });
+    temporaryDirectory = null;
+  } finally {
+    if (temporaryDirectory) await fs.rm(temporaryDirectory, { recursive: true, force: true });
+    await client.close();
+  }
+}
+
 async function voiceCallProbe(flags) {
   const { client } = await openSaved(flags);
   const sentAt = new Date().toISOString();
@@ -420,6 +565,8 @@ async function main() {
     return;
   }
   if (commandName === 'request') return signedRequest(flags);
+  if (commandName === 'storage-check') { const storage = await checkStorage(flags); output({ ok: true, storage, credentialAndRouting: storage === 'platform-vault' ? 'vault-backed' : 'requires-persistent-local-profile', invitationUsed: false }); return; }
+  if (commandName === 'storage-status') { output(await connectionStorageStatus(requireFlag(flags, 'connection'))); return; }
   if (commandName === 'pair') return pair(flags);
   if (commandName === 'listen') return listen(flags);
   if (commandName === 'events') return events(flags);
@@ -437,9 +584,10 @@ async function main() {
     if (flags['thread-id'] && flags['thread-name']) throw new Error('Choose either --thread-id or --thread-name.');
     const threadId = flags['thread-id'] ? String(flags['thread-id']) : '';
     if (threadId && !/^[A-Za-z0-9][A-Za-z0-9-]{7,119}$/.test(threadId)) throw new Error('The Codex thread ID is invalid.');
-    return command(flags, '/agent-link/v1/messages', { clientMessageId: `msg-${crypto.randomUUID()}`, type: 'message', text: requireFlag(flags, 'text'),
+    return command(flags, '/agent-link/v1/messages', { clientMessageId: flags['client-message-id'] ? String(flags['client-message-id']) : `msg-${crypto.randomUUID()}`, type: 'message', text: requireFlag(flags, 'text'),
       ...(threadId ? { metadata: { codexThreadId: threadId } } : flags['thread-name'] ? { metadata: { codexThreadName: String(flags['thread-name']) } } : {}) });
   }
+  if (commandName === 'codex-deliveries') return command(flags, '/agent-link/v1/codex/deliveries', null, 'GET');
   if (commandName === 'codex-chats') return command(flags, '/agent-link/v1/codex/chats', null, 'GET');
   if (commandName === 'codex-projects') return command(flags, '/agent-link/v1/codex/projects', null, 'GET');
   if (commandName === 'codex-chat-create') return command(flags, '/agent-link/v1/codex/chats', {
@@ -515,9 +663,11 @@ async function main() {
   if (commandName === 'cancel-job') return command(flags, `/agent-link/v1/harness-jobs/${encodeURIComponent(requireFlag(flags, 'job'))}/cancel`, {});
   if (commandName === 'desktop-frame') return desktopFrame(flags);
   if (commandName === 'desktop-media') return desktopMedia(flags);
+  if (commandName === 'camera-snapshot') return cameraSnapshot(flags);
   if (commandName === 'desktop-input') return command(flags, '/agent-link/v1/desktop/input', { input: JSON.parse(requireFlag(flags, 'json')) });
   if (commandName === 'desktop-uia-inspect') return command(flags, '/agent-link/v1/desktop/uia-inspect', {});
   if (commandName === 'desktop-uia-act') return command(flags, '/agent-link/v1/desktop/uia-act', { action: JSON.parse(requireFlag(flags, 'json')) });
+  if (commandName === 'desktop-start') return command(flags, '/agent-link/v1/desktop/start', {});
   if (commandName === 'desktop-stop') return command(flags, '/agent-link/v1/desktop/stop', {});
   if (commandName === 'desktop-speaker') return command(flags, '/agent-link/v1/desktop/speaker', JSON.parse(requireFlag(flags, 'json')));
   if (commandName === 'workspace-list') return command(flags, '/agent-link/v1/workspace/list', { path: flags.path || '.' });
@@ -605,9 +755,23 @@ async function main() {
     const record = await readConfig(requireFlag(flags, 'connection')); record.origin = origin; delete record.baseUrl; await writeConfig(record); output({ ok: true, connectionId: record.connectionId, origin: record.origin }); return;
   }
   if (commandName === 'forget') {
-    const record = await readConfig(requireFlag(flags, 'connection')); secretCli(['revoke', `--alias=${recordAlias(record)}`]); await fs.rm(configPath(record.connectionId), { force: true }); output({ ok: true, forgotten: record.connectionId }); return;
+    const record = await readConfig(requireFlag(flags, 'connection'));
+    const aliases = record.storage === 'platform-vault' ? [recordAlias(record), recordRoutingAlias(record)] : record.storage ? [] : [recordAlias(record)];
+    for (const alias of aliases) {
+      try { secretCli(['revoke', `--alias=${alias}`]); }
+      catch (error) { if (record.storage === 'platform-vault' || error.code !== 'SECRET_STORE_UNAVAILABLE') throw error; }
+    }
+    await fs.rm(vaultPath(recordAlias(record)), { force: true });
+    await fs.rm(configPath(record.connectionId), { force: true });
+    output({ ok: true, forgotten: record.connectionId }); return;
   }
-  output({ ok: false, error: 'Commands: request, pair, status, orientation, watch, listen, events, avatar-read, avatar-update, avatar-portrait, avatar-portrait-read, send, room-reply, codex-chats, codex-projects, codex-chat-create, history, ask, heartbeat, capabilities, capabilities-set, identity, tokens, continuity, continuity-request, continuity-request-status, memory-propose (memory-append legacy alias), memory-correction-propose, memory-owner-correction-propose, memory-read, memory-get, memory-owner-notes, memory-owner-note, memory-scopes, memory-select, memory-clear, memory-context, memory-feedback, memory-entity, memory-shares, memory-shared-context, memory-search, skills, skill, skill-create, skill-revise, skill-retire, tasks, task-get, task-create, task-update, task-run, task-cancel, workspace-list, workspace-read, workspace-write, owner-list, owner-read, owner-write, owner-exec, hexispace-profiles, hexispace-profile, hexispace-hexipets, hexispace-hexipet-equip, hexispace-hexipet-unequip, hexispace-hexipet-outfit, hexispace-posts, hexispace-post, hexispace-comments, hexispace-friendships, hexispace-friend-request, hexispace-friend-respond, hexispace-relationships, hexispace-relationship-request, hexispace-relationship-respond, hexispace-reaction, harness, job, cancel-job, desktop-frame, desktop-media, desktop-input, desktop-uia-inspect, desktop-uia-act, desktop-stop, desktop-speaker, voice-call-status, voice-call-initiate, voice-call-answer, voice-call-media, voice-call-end, voice-call-reply, voice-call-probe, set-origin, forget.' });
+  output({ ok: false, error: 'Commands: request, storage-check, storage-status, pair, status, orientation, watch, listen, events, avatar-read, avatar-update, avatar-portrait, avatar-portrait-read, send, room-reply, codex-chats, codex-projects, codex-chat-create, history, ask, heartbeat, capabilities, capabilities-set, identity, tokens, continuity, continuity-request, continuity-request-status, memory-propose (memory-append legacy alias), memory-correction-propose, memory-owner-correction-propose, memory-read, memory-get, memory-owner-notes, memory-owner-note, memory-scopes, memory-select, memory-clear, memory-context, memory-feedback, memory-entity, memory-shares, memory-shared-context, memory-search, skills, skill, skill-create, skill-revise, skill-retire, tasks, task-get, task-create, task-update, task-run, task-cancel, workspace-list, workspace-read, workspace-write, owner-list, owner-read, owner-write, owner-exec, hexispace-profiles, hexispace-profile, hexispace-hexipets, hexispace-hexipet-equip, hexispace-hexipet-unequip, hexispace-hexipet-outfit, hexispace-posts, hexispace-post, hexispace-comments, hexispace-friendships, hexispace-friend-request, hexispace-friend-respond, hexispace-relationships, hexispace-relationship-request, hexispace-relationship-respond, hexispace-reaction, harness, job, cancel-job, desktop-frame, desktop-media, camera-snapshot, desktop-input, desktop-uia-inspect, desktop-uia-act, desktop-start, desktop-stop, desktop-speaker, voice-call-status, voice-call-initiate, voice-call-answer, voice-call-media, voice-call-end, voice-call-reply, voice-call-probe, set-origin, forget.' });
 }
 
-main().catch((error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
+export { checkStorage };
+
+if (process.argv[1] && await fs.realpath(process.argv[1]).catch(() => '') === fileURLToPath(import.meta.url)) main().catch((error) => {
+  if (process.argv[2] === 'storage-check') output({ ok: false, code: error.code || 'STORAGE_CHECK_FAILED', stage: error.stage || 'storage-setup', operation: error.operation, exitCode: error.exitCode, helperErrorCode: error.helperErrorCode, signal: error.signal, error: error.message, invitationUsed: false });
+  else process.stderr.write(`${error.message}\n`);
+  process.exitCode = 1;
+});

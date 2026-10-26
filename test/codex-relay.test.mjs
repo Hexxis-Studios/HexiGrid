@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { codexAppServerEnvironment, codexRelayConfigured, codexRelayFailureReason, codexRelayPrompt, codexRelayReply, defaultCodexRelay, normalizeCodexRelay, publicCodexRelay, redactSensitiveText, resolveCodexThreadName, runCodexThreadTurn } from '../lib/codex-relay.mjs';
+import { codexAppServerEnvironment, codexRelayConfigured, codexRelayForLink, updateCodexRelayRoute, codexRelayFailureReason, codexRelayPrompt, codexRelayReply, defaultCodexRelay, normalizeCodexRelay, publicCodexRelay, redactSensitiveText, resolveCodexThreadName, runCodexThreadTurn } from '../lib/codex-relay.mjs';
 import { codexDesktopServerPath, runCodexDesktopTurn } from '../lib/codex-desktop-relay.mjs';
 
 test('Codex relay defaults off and exposes only safe configuration', () => {
@@ -11,6 +11,28 @@ test('Codex relay defaults off and exposes only safe configuration', () => {
   const relay = normalizeCodexRelay({ enabled: true, threadId: 'thread-12345678', linkId: 'link-123', forwardReplies: false, ignored: 'secret' });
   assert.equal(codexRelayConfigured(relay), true);
   assert.deepEqual(publicCodexRelay(relay), { version: 1, enabled: true, configured: true, threadId: 'thread-12345678', linkId: 'link-123', forwardReplies: false, allowNamedThreads: false });
+});
+
+test('each approved Link keeps its own Codex destination without replacing the legacy route', () => {
+  const original = { enabled: true, linkId: 'link-muse', threadId: 'thread-original-123', forwardReplies: true, allowNamedThreads: true };
+  let relay = normalizeCodexRelay(original);
+  for (let index = 0; index < 8; index++) relay = updateCodexRelayRoute(relay, {
+    enabled: true, linkId: `link-agent-${index}`, threadId: `thread-agent-${index}`, forwardReplies: index % 2 === 0, ignored: 'private'
+  });
+  assert.equal(codexRelayForLink(relay, 'link-muse').threadId, original.threadId);
+  for (let index = 0; index < 8; index++) {
+    const route = codexRelayForLink(relay, `link-agent-${index}`);
+    assert.equal(route.threadId, `thread-agent-${index}`);
+    assert.equal(route.forwardReplies, index % 2 === 0);
+    assert.equal(route.allowNamedThreads, false, 'new agents never inherit directory access');
+  }
+  const stopped = updateCodexRelayRoute(relay, { ...codexRelayForLink(relay, 'link-agent-0'), enabled: false });
+  assert.equal(codexRelayForLink(stopped, 'link-agent-0').enabled, false);
+  assert.equal(codexRelayForLink(stopped, 'link-muse').enabled, true);
+  assert.equal(codexRelayForLink(stopped, 'link-agent-1').enabled, true);
+  assert.equal(codexRelayForLink(stopped, 'link-unknown').enabled, false);
+  assert.doesNotMatch(JSON.stringify(publicCodexRelay(stopped)), /private|ignored/);
+  assert.deepEqual(normalizeCodexRelay(JSON.parse(JSON.stringify(stopped))), stopped, 'per-Link routes survive storage and reload');
 });
 
 test('Codex app-server resolves an exact unique thread name before starting a turn', async () => {
@@ -60,6 +82,7 @@ test('desktop bridge returns only the new target turn after signed-Link delivery
     const message = JSON.parse(raw.trim()); sent.push(message);
     if (!message.id) return;
     let result = {};
+    if (message.params?.name === 'read_thread') result = { content: [{ type: 'text', text: JSON.stringify({ turns: [{ id: 'caller-turn', status: 'inProgress' }] }) }] };
     if (message.params?.name === 'wait_threads') {
       const newTurn = sent.some((item) => item.params?.name === 'send_message_to_thread');
       const afterCursor = message.params.arguments.targets[0].afterCursor;

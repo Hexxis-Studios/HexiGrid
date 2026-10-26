@@ -61,7 +61,7 @@ async function startApp() {
   // Restore it here once the restarted server is ready; tests can then focus on the
   // persisted application state they intended to verify instead of incidental auth.
   if (ownerCookie) {
-    const login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' }, undefined, '');
+    const login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' }, undefined, '');
     if (login.response.status !== 200) throw new Error(`Link E2E owner session could not be restored after restart (${login.response.status}).`);
     ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   }
@@ -95,8 +95,8 @@ before(async () => {
 after(async () => { await stopApp(); if (modelServer) await new Promise((resolve) => modelServer.close(resolve)); if (dataDir) await rm(dataDir, { recursive: true, force: true }); });
 
 test('signed owner-note retirement survives restart and owner restore without replacing its history', async () => {
-  let login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   assert.equal((await call('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' }, undefined, ownerCookie)).response.status, 200);
@@ -121,7 +121,7 @@ test('signed owner-note retirement survives restart and owner restore without re
   assert.equal(retired.body.result.structuredContent.revision, 1);
   assert.doesNotMatch(JSON.stringify(retired.body), /Temporary synthetic guidance|expired|tokenHash/);
   await stopApp(); await startApp();
-  login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200);
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const retry = await invoke('retire-owner-note', args);
@@ -340,10 +340,145 @@ test('a web-only agent can pair, message, and remain connected without screen pe
   assert.equal((await browserRequest('/agent-link/v1/messages')).messages.length, 1);
 });
 
+test('camera-only Link gains owner-approved permissions and scoped self-management without pairing again', async (t) => {
+  if (!ownerCookie) {
+    const login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+    assert.equal(login.response.status, 200, JSON.stringify(login.body));
+    ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
+  }
+  await call('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' });
+  assert.equal((await call('/api/network/agent-relay', 'POST', { approved: true })).response.status, 200);
+  const linked = await pair('Scoped permission QA', 'scoped-permission-qa', ['status', 'camera-view']);
+  const ownerRoute = `/api/agent-links/${linked.connection.id}/capabilities`, agentRoute = '/agent-link/v1/capabilities';
+  const ownerEdit = body => call(ownerRoute, 'PATCH', { ...body, approved: true });
+  const agentEdit = capabilities => call(agentRoute, 'POST', { capabilities }, linked.token);
+  const initial = await call(agentRoute, 'GET', undefined, linked.token);
+  assert.deepEqual(initial.body.connection.selfManageableCapabilities, []);
+  const grants = [...linked.connection.capabilities, 'desktop-view', 'desktop-control', 'desktop-type', 'microphone-listen', 'speaker-output'];
+  const expanded = await ownerEdit({ capabilities: grants, selfManagementEnabled: true });
+  assert.equal(expanded.response.status, 200, JSON.stringify(expanded.body));
+  assert.equal(expanded.body.connection.id, linked.connection.id);
+  assert.equal(expanded.body.connection.trustLevel, 'scoped');
+  assert.deepEqual(expanded.body.connection.grantedCapabilities, grants);
+  assert.deepEqual(expanded.body.connection.selfManageableCapabilities, grants);
+  assert.equal(grants.some(scope => scope.startsWith('owner-')), false);
+  assert.equal((await agentEdit([...grants, 'owner-process'])).response.status, 403);
+  assert.equal((await agentEdit([...grants, 'memory-read'])).response.status, 403);
+  const paused = grants.filter(scope => scope !== 'camera-view');
+  assert.equal((await agentEdit(paused)).response.status, 200);
+  await stopApp(); await startApp();
+  const restored = await call(agentRoute, 'GET', undefined, linked.token);
+  assert.equal(restored.response.status, 200, 'same credential works after reload');
+  assert.deepEqual(restored.body.connection.capabilities, paused);
+  assert.deepEqual(restored.body.connection.selfManageableCapabilities, grants);
+  assert.equal(restored.body.connection.trustLevel, 'scoped');
+  assert.equal((await ownerEdit({ capabilities: [...grants, 'memory-read'] })).body.connection.capabilities.includes('camera-view'), false,
+    'editing another grant preserves an agent pause');
+  const resumed = await agentEdit(grants);
+  assert.equal(resumed.response.status, 200);
+  const started = await call('/api/desktop-bridge/start', 'POST', { linkId: linked.connection.id, viewGranted: false, cameraGranted: true, approved: true });
+  assert.equal(started.response.status, 200, JSON.stringify(started.body));
+  t.after(() => call('/api/desktop-bridge/stop', 'POST', { approved: true }));
+  const reconciled = await agentEdit(grants);
+  assert.equal(reconciled.body.mediaGrantActivation['microphone-listen'].enabled, true);
+  assert.equal(reconciled.body.mediaGrantActivation['speaker-output'].enabled, true);
+  const ring = await call('/agent-link/v1/voice-call/initiate', 'POST', {}, linked.token);
+  assert.equal(ring.response.status, 201, JSON.stringify(ring.body));
+  await call('/api/desktop-bridge/voice-call/end', 'POST', {});
+  const ownerPaused = await call('/api/desktop-bridge/media/stop', 'POST', { kind: 'microphone' });
+  assert.equal(ownerPaused.response.status, 200);
+  assert.equal((await agentEdit(grants)).body.mediaGrantActivation['microphone-listen'].reason, 'owner-paused');
+  const revoked = grants.filter(scope => scope !== 'microphone-listen');
+  assert.equal((await ownerEdit({ capabilities: revoked })).response.status, 200);
+  const denied = await agentEdit(grants);
+  assert.equal(denied.response.status, 403);
+  assert.match(denied.body.error, /microphone-listen/);
+  assert.equal((await ownerEdit({ capabilities: revoked, selfManagementEnabled: false })).response.status, 200);
+  assert.equal((await agentEdit(revoked)).response.status, 403, 'owner can turn self-management off');
+  const beforeInvalid = await call(agentRoute, 'GET', undefined, linked.token);
+  assert.equal((await ownerEdit({ capabilities: [...revoked, 'owner-process'], selfManagementEnabled: true })).response.status, 403);
+  assert.equal((await ownerEdit({ capabilities: revoked, selfManagementEnabled: 'yes' })).response.status, 400);
+  assert.deepEqual((await call(agentRoute, 'GET', undefined, linked.token)).body.connection.capabilities, beforeInvalid.body.connection.capabilities);
+  assert.equal((await call(agentRoute, 'GET', undefined, linked.token)).body.connection.selfManagementEnabled, false);
+});
+
+test('agents restart their own bridge and keep concurrent sharing isolated through restart and revocation', async t => {
+  if (!ownerCookie) {
+    const login = await call('/api/auth/setup', 'POST', {password: 'public-disposable-QA-fixture-only'});
+    ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
+  }
+  await call('/api/settings', 'PATCH', {workMode: 'build', approvalPolicy: 'full'});
+  await call('/api/network/agent-relay', 'POST', {approved: true});
+  const first = await pair('Concurrent first QA', 'concurrent-first', ['camera-view']);
+  const second = await pair('Concurrent second QA', 'concurrent-second', ['camera-view', 'microphone-listen', 'speaker-output']);
+  const start = link => call('/agent-link/v1/desktop/start', 'POST', {}, link.token);
+  assert.equal((await start(first)).response.status, 403, 'owner must explicitly allow self-management');
+  for (const link of [first, second]) assert.equal((await call(`/api/agent-links/${link.connection.id}/capabilities`, 'PATCH', {capabilities: link.connection.capabilities, selfManagementEnabled: true, approved: true})).response.status, 200);
+  assert.equal((await start(first)).response.status, 200);
+  assert.equal((await start(second)).response.status, 200);
+  let owner = await call('/api/desktop-bridge');
+  assert.equal(owner.body.bridge.linkId, second.connection.id);
+  assert.equal(owner.body.bridge.sessions[first.connection.id].enabled, true);
+  assert.equal((await call('/agent-link/v1/desktop/start', 'POST', {linkId: second.connection.id}, first.token)).response.status, 400);
+  const frame = {mimeType: 'image/jpeg', data: 'eA==', width: 1, height: 1};
+  assert.equal((await call('/api/desktop-bridge/media/camera', 'POST', frame)).response.status, 202);
+  const [one, two] = await Promise.all([first, second].map(link => call('/agent-link/v1/desktop/media', 'POST', {}, link.token)));
+  assert.equal(one.response.status, 200, JSON.stringify(one.body));
+  assert.equal(two.response.status, 200, JSON.stringify(two.body));
+  assert.equal(one.body.camera.data, frame.data); assert.equal(two.body.camera.data, frame.data);
+  assert.equal(one.body.media.linkId, first.connection.id);
+  assert.equal(two.body.media.linkId, second.connection.id);
+  assert.deepEqual(one.body.audio, []);
+  const controlScopes = [...first.connection.capabilities, 'desktop-view', 'desktop-control', 'desktop-type'];
+  assert.equal((await call(`/api/agent-links/${first.connection.id}/capabilities`, 'PATCH', {capabilities: controlScopes, approved: true})).response.status, 200);
+  await call('/api/desktop-bridge/start', 'POST', {linkId: first.connection.id, viewGranted: true, controlGranted: true, textGranted: true, cameraGranted: true, approved: true});
+  await call('/api/desktop-bridge/start', 'POST', {linkId: second.connection.id, viewGranted: false, cameraGranted: true, approved: true});
+  const secondControlScopes = [...second.connection.capabilities, 'desktop-view', 'desktop-control', 'desktop-type'];
+  assert.equal((await call(`/api/agent-links/${second.connection.id}/capabilities`, 'PATCH', {capabilities: secondControlScopes, selfManagementEnabled: true, approved: true})).response.status, 200);
+  for (const link of [first, second]) {
+    const active = await start(link);
+    assert.equal(active.response.status, 200, JSON.stringify(active.body));
+    assert.equal(active.body.bridge.controlGranted, true);
+    assert.equal(active.body.bridge.agentControlActive, true);
+  }
+  const parallelControl = (await call('/api/desktop-bridge')).body.bridge;
+  assert.equal(parallelControl.agentControlActive, true);
+  assert.equal(parallelControl.sessions[first.connection.id].agentControlActive, true, 'the second agent does not disable the first');
+  await call('/api/desktop-bridge/takeover', 'POST', {});
+  for (const link of [first, second]) assert.equal((await start(link)).response.status, 403, 'agent startup cannot undo owner takeover');
+  const resumedControl = await call('/api/desktop-bridge/resume', 'POST', {linkId: first.connection.id, approved: true});
+  assert.equal(resumedControl.response.status, 200, JSON.stringify(resumedControl.body));
+  assert.equal(resumedControl.body.bridge.linkId, second.connection.id, 'resuming one controller does not move another sharing session');
+  assert.equal(resumedControl.body.bridge.sessions[first.connection.id].agentControlActive, true);
+  // Return to camera-only for the scoped camera stop/recovery assertions below.
+  await call(`/api/agent-links/${first.connection.id}/capabilities`, 'PATCH', {capabilities: first.connection.capabilities, approved: true});
+  await call(`/api/agent-links/${second.connection.id}/capabilities`, 'PATCH', {capabilities: second.connection.capabilities, approved: true});
+  await stopApp(); await startApp();
+  owner = await call('/api/desktop-bridge');
+  assert.equal(owner.body.bridge.sessions[first.connection.id].enabled, true);
+  assert.equal((await start(first)).body.alreadyActive, true, 'restart is idempotent on the same credential');
+  assert.equal((await call('/agent-link/v1/desktop/stop', 'POST', {}, first.token)).response.status, 200);
+  assert.equal((await call('/api/desktop-bridge')).body.bridge.linkId, second.connection.id);
+  assert.equal((await start(first)).response.status, 200, 'camera-only Link can stop and resume itself');
+  assert.equal((await call(`/api/agent-links/${first.connection.id}`, 'DELETE', {approved: true})).response.status, 200);
+  assert.equal((await start(first)).response.status, 410);
+  assert.equal((await start(second)).response.status, 200);
+  await call('/api/settings', 'PATCH', {workMode: 'plan'});
+  assert.equal((await start(second)).response.status, 403);
+  await call('/api/settings', 'PATCH', {workMode: 'build'});
+  assert.equal((await call('/api/emergency/stop', 'POST', {})).response.status, 200);
+  const stopped = await start(second);
+  assert.equal(stopped.response.status, 403);
+  assert.match(stopped.body.error, /Emergency Stop/);
+  // Only a deliberate owner Start clears the emergency stop boundary.
+  assert.equal((await call('/api/desktop-bridge/start', 'POST', {linkId: second.connection.id, viewGranted: false, cameraGranted: true, approved: true})).response.status, 200);
+  t.after(() => call('/api/desktop-bridge/stop', 'POST', {approved: true}));
+});
+
 test('owner-trusted Link self-manages persistent capabilities and reconciles owner-approved media grants', async (t) => {
   if (!ownerCookie) {
-    let login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-    if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+    let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+    if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
     assert.equal(login.response.status, 200, JSON.stringify(login.body));
     ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   }
@@ -467,9 +602,10 @@ test('owner-trusted Link self-manages persistent capabilities and reconciles own
   assert.equal(screenOff.response.status, 200, JSON.stringify(screenOff.body));
   assert.equal(screenOff.body.connection.selfManageableCapabilities.includes('desktop-view'), true);
   ownerMedia = await call('/api/desktop-bridge', 'GET', undefined, undefined, ownerCookie);
-  assert.equal(ownerMedia.body.media.cameraGranted, false);
-  assert.equal(ownerMedia.body.media.microphoneGranted, false);
-  assert.equal(ownerMedia.body.media.speakerGranted, false);
+  assert.equal(ownerMedia.body.media.cameraGranted, true, 'screen access is separate from camera access');
+  assert.equal(ownerMedia.body.media.microphoneGranted, true);
+  assert.equal(ownerMedia.body.media.speakerGranted, true);
+  assert.equal((await call('/agent-link/v1/desktop/frame', 'GET', undefined, linked.token)).response.status, 403, 'screen revocation still blocks screenshots');
   const screenOn = await call(route, 'POST', { capabilities: granted }, linked.token);
   assert.equal(screenOn.response.status, 200, JSON.stringify(screenOn.body));
   for (const capability of ['camera-view', 'microphone-listen', 'speaker-output']) {
@@ -664,6 +800,8 @@ test('bridge media endpoints deliver owner camera and mic to the agent and agent
     const answered = await call('/agent-link/v1/voice-call/answer', 'POST', {}, link.token);
     assert.equal(answered.response.status, 200, JSON.stringify(answered.body));
     assert.equal(answered.body.voiceCall.status, 'active');
+    assert.equal(answered.body.callHandling.required, true, 'answer supplies the call-handling rule without another orientation read');
+    assert.match(answered.body.callHandling.messageDriven, /queue alone does not wake/);
     const staleReply = await call('/agent-link/v1/voice-call/reply', 'POST', { callId: 'voice-call-not-this-call', text: 'Do not speak this stale reply.' }, link.token);
     assert.equal(staleReply.response.status, 409);
     assert.match(staleReply.body.error, /different or ended call/);
@@ -857,8 +995,8 @@ test('scoped harness jobs dispatch, poll, cancel, and never cross link boundarie
 
 test('agent-initiated call prepares approved audio and connects when the owner allows it', async () => {
   if (!ownerCookie) {
-    let login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-    if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+    let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+    if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
     assert.equal(login.response.status, 200, JSON.stringify(login.body));
     ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   }
@@ -884,6 +1022,8 @@ test('agent-initiated call prepares approved audio and connects when the owner a
     const initiated = await call('/agent-link/v1/voice-call/initiate', 'POST', {}, link.token);
     assert.equal(initiated.response.status, 201, JSON.stringify(initiated.body));
     assert.equal(initiated.body.voiceCall.status, 'ringing');
+    assert.equal(initiated.body.callHandling.required, true, 'initiate supplies call-handling instructions to every provider');
+    assert.match(initiated.body.callHandling.poll.clientCommand, /events.*--wait-ms 25000/);
     assert.equal(initiated.body.voiceCall.direction, 'agent-to-owner');
     assert.equal(initiated.body.voiceCall.callerName, 'Outbound call QA');
     const ringingEvents = await call('/agent-link/v1/events?after=0', 'GET', undefined, link.token);
@@ -914,6 +1054,7 @@ test('agent-initiated call prepares approved audio and connects when the owner a
     assert.equal(acceptedEvent?.metadata?.mediaEpoch, allowed.body.voiceCall.mediaEpoch, 'acceptance carries the selected media epoch');
     assert.equal(allowed.body.media.microphoneGranted, true);
     assert.equal(allowed.body.media.microphoneActive, false, 'the server grant is separate from a real browser stream');
+    assert.match(acceptedEvent?.text || '', /Enter call-handling mode/);
     const ended = await call('/api/desktop-bridge/voice-call/end', 'POST', { callId: initiated.body.voiceCall.id }, undefined, ownerCookie);
     assert.equal(ended.response.status, 200, JSON.stringify(ended.body));
     assert.equal(ended.body.voiceCall.status, 'ended');
@@ -926,7 +1067,7 @@ test('agent-initiated call prepares approved audio and connects when the owner a
     assert.equal(savedBridge.body.bridge.mediaGrants.speaker, true, 'the approved grant is saved for engine restore');
     await stopApp();
     await startApp();
-    const restartedLogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+    const restartedLogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
     assert.equal(restartedLogin.response.status, 200, JSON.stringify(restartedLogin.body));
     ownerCookie = restartedLogin.response.headers.get('set-cookie').split(';', 1)[0];
     const afterRestart = await call('/api/desktop-bridge', 'GET', undefined, undefined, ownerCookie);
@@ -940,7 +1081,7 @@ test('agent-initiated call prepares approved audio and connects when the owner a
     assert.equal(ownerPaused.response.status, 200, JSON.stringify(ownerPaused.body));
     await stopApp();
     await startApp();
-    const pausedRestartLogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+    const pausedRestartLogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
     assert.equal(pausedRestartLogin.response.status, 200, JSON.stringify(pausedRestartLogin.body));
     ownerCookie = pausedRestartLogin.response.headers.get('set-cookie').split(';', 1)[0];
     const afterOwnerPauseRestart = await call('/api/desktop-bridge', 'GET', undefined, undefined, ownerCookie);
@@ -953,9 +1094,133 @@ test('agent-initiated call prepares approved audio and connects when the owner a
   }
 });
 
+test('owner configures two independent Codex messaging routes without replacing either Link', async () => {
+  let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  assert.equal(login.response.status, 200);
+  ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
+  const checked = async (route, method, body, token, expected = 200) => {
+    const result = await call(route, method, body, token);
+    assert.equal(result.response.status, expected, `${route}: ${JSON.stringify(result.body)}`);
+    return result.body;
+  };
+  await checked('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' });
+  await checked('/api/network/agent-relay', 'POST', {});
+  const a = await pair('Disposable Muse route', 'route-muse');
+  const b = await pair('Disposable iLander route', 'route-ilander');
+  const unrelated = await pair('No Codex route', 'route-unapproved');
+  const firstRoute = { enabled: true, linkId: a.connection.id, threadId: 'thread-original-123', forwardReplies: true };
+  const secondRoute = { enabled: true, linkId: b.connection.id, threadId: 'thread-current-123', threadTitle: 'Current project', forwardReplies: true,
+    approvedChats: [{ threadId: 'thread-approved-extra-123', title: 'Shared planning' }] };
+  try {
+    // Hold real dispatch; the synthetic chat IDs must never reach the host desktop.
+    await checked('/api/settings', 'PATCH', { workMode: 'plan' });
+    await checked('/api/settings', 'PATCH', { codexRelay: firstRoute });
+    const saved = await checked('/api/settings', 'PATCH', { codexRelay: secondRoute });
+    assert.equal(saved.settings.codexRelay.linkId, a.connection.id);
+    assert.equal(saved.settings.codexRelay.threadId, firstRoute.threadId);
+    assert.equal(saved.settings.codexRelay.routes.find(route => route.linkId === b.connection.id).threadId, secondRoute.threadId);
+    await checked('/api/settings', 'PATCH', { codexRelay: { ...secondRoute, allowNamedThreads: true } }, undefined, 403);
+    await checked('/api/settings', 'PATCH', { codexRelay: { ...secondRoute, routes: [firstRoute] } }, undefined, 400);
+    const send = async (link, id) => checked('/agent-link/v1/messages', 'POST', { clientMessageId: id, text: 'Synthetic routing check only.' }, link.token, 201);
+    const one = await send(a, 'route-muse-probe-0001');
+    const two = await send(b, 'route-ilander-probe-0001');
+    const three = await send(unrelated, 'route-unapproved-probe-0001');
+    await checked('/agent-link/v1/messages', 'POST', { clientMessageId: 'route-forbidden-target-0001', text: 'Blocked.', metadata: { codexThreadId: firstRoute.threadId } }, b.token, 403);
+    const directory = await checked('/agent-link/v1/codex/chats', 'GET', undefined, b.token);
+    assert.deepEqual(directory.chats.map(chat => chat.title), ['Current project', 'Shared planning']);
+    await checked('/agent-link/v1/codex/projects', 'GET', undefined, b.token, 403);
+    const explicit = await checked('/agent-link/v1/messages', 'POST', { clientMessageId: 'route-approved-target-0001', text: 'Approved conversation only.', metadata: { codexThreadName: 'Shared planning' } }, b.token, 201);
+    assert.equal(explicit.codexDelivery.threadId, 'thread-approved-extra-123');
+    assert.equal(explicit.codexDelivery.state, 'queued');
+    const duplicate = await checked('/agent-link/v1/messages', 'POST', { clientMessageId: 'route-approved-target-0001', text: 'Approved conversation only.', metadata: { codexThreadId: 'thread-approved-extra-123' } }, b.token);
+    assert.equal(duplicate.duplicate, true);
+    assert.equal(duplicate.message.id, explicit.message.id);
+    const ownDeliveries = await checked('/agent-link/v1/codex/deliveries', 'GET', undefined, b.token);
+    assert.equal(ownDeliveries.deliveries.some(item => item.messageId === one.message.id), false);
+    assert.equal(ownDeliveries.deliveries.some(item => item.messageId === explicit.message.id), true);
+    const deliveries = (await checked('/api/bootstrap', 'GET')).codexDeliveries;
+    assert.equal(deliveries.find(job => job.id === one.message.id).threadId, firstRoute.threadId);
+    assert.equal(deliveries.find(job => job.id === two.message.id).threadId, secondRoute.threadId);
+    assert.equal(deliveries.some(job => job.id === three.message.id), false, 'unconfigured agents are never routed');
+    await stopApp(); await startApp();
+    const reloaded = (await checked('/api/bootstrap', 'GET')).settings.codexRelay;
+    assert.equal(reloaded.linkId, a.connection.id);
+    assert.equal(reloaded.routes.find(route => route.linkId === b.connection.id).threadId, secondRoute.threadId);
+    const disabled = await checked('/api/settings', 'PATCH', { codexRelay: { ...secondRoute, enabled: false } });
+    assert.equal(disabled.settings.codexRelay.enabled, true, 'disabling one route leaves the original enabled');
+    assert.equal(disabled.settings.codexRelay.routes.find(route => route.linkId === b.connection.id).enabled, false);
+  } finally {
+    await call('/api/settings', 'PATCH', { codexRelay: { ...firstRoute, enabled: false } });
+    await call('/api/settings', 'PATCH', { codexRelay: { ...secondRoute, enabled: false } });
+    await call('/api/settings', 'PATCH', { workMode: 'build' });
+    await call('/api/network/agent-relay/stop', 'POST', {});
+  }
+});
+
+test('owner calls resume only approved media for paired agents without requiring self-management', async () => {
+  let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  assert.equal(login.response.status, 200, JSON.stringify(login.body));
+  ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
+  const checked = async (route, method, body, token, expected = 200) => {
+    const result = await call(route, method, body, token);
+    assert.equal(result.response.status, expected, `${route}: ${JSON.stringify(result.body)}`);
+    return result.body;
+  };
+  await checked('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' });
+  await checked('/api/network/agent-relay', 'POST', {});
+  const link = await pair('Disposable idle caller', 'owner-paused-audio-call', ['desktop-view', 'camera-view', 'microphone-listen', 'speaker-output', 'workspace-read']);
+  const grants = link.connection.capabilities;
+  const paused = grants.filter(scope => !['camera-view', 'microphone-listen', 'speaker-output', 'workspace-read'].includes(scope));
+  const permissionsRoute = `/api/agent-links/${link.connection.id}/capabilities`;
+  const readCapabilities = async () => (await checked('/agent-link/v1/capabilities', 'GET', undefined, link.token)).connection;
+  const pauseMedia = async () => {
+    await checked(permissionsRoute, 'PATCH', { capabilities: grants, selfManagementEnabled: true, approved: true });
+    await checked('/agent-link/v1/capabilities', 'POST', { capabilities: paused }, link.token);
+    await checked(permissionsRoute, 'PATCH', { capabilities: grants, selfManagementEnabled: false, approved: true });
+    assert.deepEqual((await readCapabilities()).capabilities, paused);
+  };
+  try {
+    await checked('/api/desktop-bridge/start', 'POST', { linkId: link.connection.id, viewGranted: true, approved: true });
+    await pauseMedia();
+    const offered = await checked('/api/desktop-bridge/voice-call/start', 'POST', { linkId: link.connection.id, approved: true }, undefined, 201);
+    assert.equal(offered.voiceCall.status, 'offered');
+    const resumed = await readCapabilities();
+    assert.equal(resumed.capabilities.includes('microphone-listen'), true);
+    assert.equal(resumed.capabilities.includes('speaker-output'), true);
+    assert.equal(resumed.capabilities.includes('camera-view'), false, 'a voice call does not resume a paused camera');
+    assert.equal(resumed.capabilities.includes('workspace-read'), false, 'a call cannot resume unrelated permissions');
+    assert.deepEqual(resumed.grantedCapabilities, grants, 'the owner-approved ceiling never changes');
+    assert.equal(resumed.selfManagementEnabled, false);
+    await checked('/agent-link/v1/voice-call/answer', 'POST', {}, link.token);
+    await checked('/api/desktop-bridge/media/switch', 'POST', { kind: 'camera', enabled: true, approved: true });
+    assert.equal((await readCapabilities()).capabilities.includes('camera-view'), true, 'turning video on resumes an already approved camera');
+    await checked('/api/desktop-bridge/voice-call/end', 'POST', {});
+    await pauseMedia();
+    await checked('/api/desktop-bridge/voice-call/start', 'POST', { linkId: link.connection.id, video: true, approved: true }, undefined, 201);
+    const video = await readCapabilities();
+    assert.equal(video.capabilities.includes('camera-view'), true, 'Video prepares the approved camera with audio');
+    assert.equal(video.capabilities.includes('workspace-read'), false);
+    await checked('/api/desktop-bridge/voice-call/end', 'POST', {});
+    await checked(permissionsRoute, 'PATCH', { capabilities: grants.filter(scope => scope !== 'camera-view'), approved: true });
+    const beforeDeniedVideo = (await readCapabilities()).capabilities;
+    await checked('/api/desktop-bridge/voice-call/start', 'POST', { linkId: link.connection.id, video: true, approved: true }, undefined, 403);
+    assert.deepEqual((await readCapabilities()).capabilities, beforeDeniedVideo, 'a denied Video request cannot change capabilities');
+    await checked(permissionsRoute, 'PATCH', { capabilities: grants.filter(scope => scope !== 'speaker-output'), approved: true });
+    await checked('/api/desktop-bridge/voice-call/start', 'POST', { linkId: link.connection.id, approved: true }, undefined, 403);
+    assert.equal((await readCapabilities()).capabilities.includes('speaker-output'), false, 'a removed owner grant is never restored');
+  } finally {
+    await call('/api/desktop-bridge/voice-call/end', 'POST', {}).catch(() => {});
+    await call('/api/desktop-bridge/stop', 'POST', {});
+    await call('/api/network/agent-relay/stop', 'POST', {});
+    await call('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' });
+  }
+});
+
 test('two signed call participants switch without sharing held audio, camera frames or stale capture', { timeout: 20_000 }, async () => {
-  let login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200);
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const checked = async (route, method, body, token, expected = 200) => {
@@ -1132,8 +1397,8 @@ test('owner-supplied Markdown imports end to end and returns the exact official 
 
 test('HexiSpace agent conversations persist locally, keep link/agent boundaries, and resume after restart', async () => {
   const linked = await pair('HexiSpace chat', 'hexispace-chat-agent');
-  let auth = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-  if (auth.response.status === 409) auth = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let auth = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (auth.response.status === 409) auth = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(auth.response.status, 200, JSON.stringify(auth.body));
   ownerCookie = auth.response.headers.get('set-cookie').split(';', 1)[0];
   const browserA = await pairHexiSpace(['messages']);
@@ -1192,7 +1457,7 @@ test('HexiSpace agent conversations persist locally, keep link/agent boundaries,
 });
 
 test('signed identity updates honor work mode and keep linked names as labels', async () => {
-  const login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  const login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const linked = await pair('Identity route QA', 'identity-route-qa');
@@ -1212,9 +1477,9 @@ test('signed identity updates honor work mode and keep linked names as labels', 
 });
 
 test('authenticated owner commits dated memory; signed Link can only read or propose it', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1331,9 +1596,9 @@ test('authenticated owner commits dated memory; signed Link can only read or pro
 });
 
 test('owner grants one exact Link current cross-agent facts and can revoke them immediately', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1500,9 +1765,9 @@ test('signed temporal memory creation preserves factual windows through commit r
   const proposalId = pending.body.result.structuredContent.proposalId;
   const lookup = (id, extra = {}) => invoke('get-memory', { id, ...extra });
   await stopApp(); await startApp();
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1558,9 +1823,9 @@ test('signed temporal memory creation preserves factual windows through commit r
 });
 
 test('signed temporal corrections retain revised windows and append-only evidence under both trust levels', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1635,9 +1900,9 @@ test('signed temporal corrections retain revised windows and append-only evidenc
 });
 
 test('signed memory proposals persist for owner review and commit only after approval', async () => {
-  let relogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let relogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (relogin.response.status === 409 && /Create the local passcode first/.test(relogin.body.error)) {
-    relogin = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    relogin = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(relogin.response.status, 200, JSON.stringify(relogin.body));
   ownerCookie = relogin.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1654,9 +1919,9 @@ test('signed memory proposals persist for owner review and commit only after app
   assert.equal((await propose('propose-memory', candidate)).body.result.structuredContent.proposalId, proposalId, 'retries keep the same pending review item');
   assert.ok([401, 403].includes((await call('/api/memory-proposals', 'GET', undefined, undefined, '')).response.status), 'unauthenticated review stays denied');
   await stopApp(); await startApp();
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1707,9 +1972,9 @@ test('signed memory proposals persist for owner review and commit only after app
 });
 
 test('owner-trusted signed Link manages memory autonomously while preserving policy gates', async () => {
-  let relogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let relogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (relogin.response.status === 409 && /Create the local passcode first/.test(relogin.body.error)) {
-    relogin = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    relogin = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(relogin.response.status, 200, JSON.stringify(relogin.body));
   ownerCookie = relogin.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1733,9 +1998,9 @@ test('owner-trusted signed Link manages memory autonomously while preserving pol
   const retry = await invoke('propose-memory', fact);
   assert.equal(retry.body.result.structuredContent.memoryId, committed.memoryId);
   await stopApp(); await startApp();
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1819,9 +2084,9 @@ test('owner-trusted signed Link manages memory autonomously while preserving pol
 });
 
 test('signed owner-note correction proposals bind exact Link evidence and require owner approval', async () => {
-  let ownerLogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let ownerLogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (ownerLogin.response.status === 409 && /Create the local passcode first/.test(ownerLogin.body.error)) {
-    ownerLogin = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    ownerLogin = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(ownerLogin.response.status, 200, JSON.stringify(ownerLogin.body));
   ownerCookie = ownerLogin.response.headers.get('set-cookie').split(';', 1)[0];
@@ -1889,7 +2154,7 @@ test('signed owner-note correction proposals bind exact Link evidence and requir
   const before = await call(`/api/agents/${linked.agent.id}/memories?manage=1`, 'GET', undefined, undefined, ownerCookie);
   assert.equal(before.body.memories.find((item) => item.id === memoryId).content, created.body.memory.content);
   await stopApp(); await startApp();
-  const login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  const login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const review = await call(`/api/memory-proposals?agentId=${linked.agent.id}`, 'GET', undefined, undefined, ownerCookie);
@@ -1933,9 +2198,9 @@ test('signed owner-note correction proposals bind exact Link evidence and requir
 });
 
 test('approved Link proposals remain warned until owner confirmation, and content edits restore the warning', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -2030,9 +2295,9 @@ test('approved Link proposals remain warned until owner confirmation, and conten
 });
 
 test('owner memory priority and identity anchors require an authenticated, explicit pin decision', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -2099,7 +2364,7 @@ test('owner memory priority and identity anchors require an authenticated, expli
 });
 
 test('Hexonaut profile actions require both the agent invitation and an exact profile mapping', async () => {
-  const login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  const login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const authorized = await pair('Profile agent', 'profile-agent-test', ['hexispace-profile']);
@@ -2167,8 +2432,8 @@ test('Hexonaut comment routes deny agents without the separate comment scope or 
 });
 
 test('Hexonaut friend and reaction routes require their separate invitation scopes and an exact social mapping', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
-  if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const friends = await pair('Friend-scope agent', 'friend-scope-test', ['hexispace-friends']);
@@ -2218,9 +2483,9 @@ test('Hexonaut linked-profile routes require all three separate grants and an ex
 });
 
 test('owner skills are approved, versioned, private to one Link lineage, and durable', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   if (login.response.status === 409 && /Create the local passcode first/.test(login.body.error)) {
-    login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+    login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   }
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
@@ -2323,7 +2588,7 @@ test('owner skills are approved, versioned, private to one Link lineage, and dur
   assert.equal(resumed.response.status, 200, JSON.stringify(resumed.body));
   assert.equal(resumed.body.skill.revision, 2);
   assert.equal(resumed.body.skill.procedure, revisedProcedure);
-  const relogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  const relogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(relogin.response.status, 200, JSON.stringify(relogin.body));
   ownerCookie = relogin.response.headers.get('set-cookie').split(';', 1)[0];
   const retired = await call(`${ownerPath}/${skillId}/revise`, 'POST', { changes: { status: 'retired' },
@@ -2364,7 +2629,7 @@ test('owner skills are approved, versioned, private to one Link lineage, and dur
   const imported = await call('/api/backup/import', 'POST', { envelope: backup.body.envelope,
     passphrase: 'agent-skill-backup-test-passphrase', confirmReplace: true }, undefined, ownerCookie);
   assert.equal(imported.response.status, 200, JSON.stringify(imported.body));
-  const restoredLogin = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  const restoredLogin = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(restoredLogin.response.status, 200, JSON.stringify(restoredLogin.body));
   ownerCookie = restoredLogin.response.headers.get('set-cookie').split(';', 1)[0];
   const restoredHistory = await call(`${ownerPath}/${skillId}?depth=1`, 'GET', undefined, undefined, ownerCookie);
@@ -2386,8 +2651,8 @@ test('owner skills are approved, versioned, private to one Link lineage, and dur
 });
 
 test('risky linked skill drafts persist in an owner-only review queue and require explicit rejection', async () => {
-  let login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
-  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   assert.equal((await call('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' }, undefined, ownerCookie)).response.status, 200);
@@ -2418,7 +2683,7 @@ test('risky linked skill drafts persist in an owner-only review queue and requir
     .includes(skillDraft.procedure), false, 'audit receipts do not contain quarantined instruction text');
 
   await stopApp(); await startApp();
-  login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
+  login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200);
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   const afterRestart = await call(collectionPath, 'GET', undefined, undefined, ownerCookie);
@@ -2440,8 +2705,8 @@ test('risky linked skill drafts persist in an owner-only review queue and requir
 });
 
 test('retrieval feedback is exact-Link scoped and owner review inventories current facts', async () => {
-  let login = await call('/api/auth/login', 'POST', { password: 'test-only-passphrase-123' });
-  if (login.response.status === 409) login = await call('/api/auth/setup', 'POST', { password: 'test-only-passphrase-123' });
+  let login = await call('/api/auth/login', 'POST', { password: 'public-disposable-QA-fixture-only' });
+  if (login.response.status === 409) login = await call('/api/auth/setup', 'POST', { password: 'public-disposable-QA-fixture-only' });
   assert.equal(login.response.status, 200, JSON.stringify(login.body));
   ownerCookie = login.response.headers.get('set-cookie').split(';', 1)[0];
   await call('/api/settings', 'PATCH', { workMode: 'build', approvalPolicy: 'full' }, undefined, ownerCookie);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
@@ -28,6 +28,8 @@ test('Windows launcher verifies a new and existing HexiGrid process and rejects 
   const dataDir = await mkdtemp(path.join(os.tmpdir(), 'hexigrid-launcher-')); let launchedPid;
   const reserve = http.createServer(); await new Promise((resolve) => reserve.listen(0, '127.0.0.1', resolve)); const port = reserve.address().port; await new Promise((resolve) => reserve.close(resolve));
   try {
+    // Simulate a previous boot's lock whose PID now belongs to this test runner.
+    await writeFile(path.join(dataDir, '.instance.lock'), JSON.stringify({ product: 'hexigrid', pid: process.pid, instanceId: 'prior-boot', version: '0.0.1', createdAt: '2000-01-01T00:00:00.000Z' }));
     const started = await runLauncher(port, dataDir); assert.equal(started.code, 0, started.stderr); assert.match(started.stdout, /HexiGrid verified/);
     const runtime = JSON.parse(await readFile(path.join(dataDir, '.runtime.json'), 'utf8')); launchedPid = runtime.pid; assert.equal(runtime.product, 'hexigrid'); assert.equal(runtime.port, port);
     const existing = await runLauncher(port, dataDir); assert.equal(existing.code, 0, existing.stderr); assert.match(existing.stdout, new RegExp(`process ${launchedPid}`));

@@ -56,14 +56,16 @@
   function callReadiness(link) {
     const bridge = state.data?.settings?.desktopBridge || state.data?.desktopBridge || {};
     const required = ['microphone-listen', 'speaker-output'];
-    const missing = required.filter((capability) => !link.capabilities?.includes(capability));
-    const connected = (!link.authorizationStatus || link.authorizationStatus === 'connected') && ['online', 'connected'].includes(link.status);
+    const missing = required.filter((capability) => !(link.grantedCapabilities || link.capabilities || []).includes(capability));
+    const connected = !['revoked', 'stale'].includes(link.status) && (link.authorizationStatus
+      ? link.authorizationStatus === 'connected'
+      : ['online', 'degraded', 'connected'].includes(link.status));
     const ready = connected && bridge.enabled === true && missing.length === 0;
     let reason = 'Ready to call';
     if (!connected) reason = 'Reconnect this agent to call';
     else if (missing.length) reason = 'Allow microphone and speaker access for this agent';
     else if (!bridge.enabled) reason = 'Turn on Computer access to call';
-    return { ready, reason };
+    return { ready, reason, paired: connected };
   }
 
   function renderCallDirectory() {
@@ -93,11 +95,11 @@
       const agent = agentForLink(link.id);
       const initials = nameForLink(link.id).split(/\s+/).slice(0, 2).map((part) => part[0] || '').join('').toUpperCase();
       const selected = selectedCallLinkId === link.id || (!selectedCallLinkId && readiness.ready);
-      const label = ['online', 'connected'].includes(link.status) ? (readiness.ready ? 'Ready' : 'Paired') : String(link.status || 'Offline').replaceAll('-', ' ');
+      const label = readiness.paired ? (link.status === 'online' && readiness.ready ? 'Ready' : 'Paired') : String(link.status || 'Offline').replaceAll('-', ' ');
       const participant = participants.find(item => item.linkId === link.id);
       const canCall = readiness.ready && !callStartBusy && !participant;
       const reason = participant ? (participant.onHold ? 'On hold' : 'In call') : readiness.reason;
-      const videoButton = `<button type="button" class="secondary-button" data-call-start="${escapeHtml(link.id)}" data-call-video="true" ${canCall && link.capabilities?.includes('camera-view') ? '' : 'disabled'} aria-label="Video call ${escapeHtml(nameForLink(link.id))}">Video</button>`;
+      const videoButton = `<button type="button" class="secondary-button" data-call-start="${escapeHtml(link.id)}" data-call-video="true" ${canCall && (link.grantedCapabilities || link.capabilities || []).includes('camera-view') ? '' : 'disabled'} aria-label="Video call ${escapeHtml(nameForLink(link.id))}">Video</button>`;
       return `<li class="call-contact ${readiness.ready ? 'is-ready' : ''} ${selected ? 'is-selected' : ''}"><span class="call-contact__avatar" aria-hidden="true">${escapeHtml(initials || 'A')}</span><span class="call-contact__identity"><strong>${escapeHtml(nameForLink(link.id))}</strong><small>${escapeHtml(agent?.accountLabel || link.identity?.provider || 'Paired agent')}</small><span class="call-contact__status"><i aria-hidden="true"></i>${escapeHtml(label)} · ${escapeHtml(reason)}</span>${callVoicePicker(agent, nameForLink(link.id))}</span><span class="call-contact__actions"><button type="button" class="${readiness.ready ? 'primary-button' : 'secondary-button'}" data-call-start="${escapeHtml(link.id)}" ${canCall ? '' : 'disabled'} aria-label="${callInProgress ? 'Add' : 'Call'} ${escapeHtml(nameForLink(link.id))}">${callStartBusy && selected ? 'Connecting…' : participant ? participant.onHold ? 'On hold' : 'In call' : callInProgress ? 'Add to call' : 'Call'}</button>${callInProgress ? '' : videoButton}<button type="button" class="ghost-button call-contact__remove" data-call-hide="${escapeHtml(link.id)}" ${participant ? 'disabled title="End this contact’s call before removing it"' : ''} aria-label="Remove ${escapeHtml(nameForLink(link.id))} from phonebook">Remove</button></span></li>`;
     }).join('');
     if (root.innerHTML !== content) root.innerHTML = content;
@@ -127,7 +129,7 @@
     const link = connectionForLink(linkId);
     const readiness = link && callReadiness(link);
     if (!link || !readiness?.ready) { setStatus(readiness?.reason || 'This agent is not available for calls.', true); return; }
-    if (video && !link.capabilities?.includes('camera-view')) { setStatus('Allow camera access for this agent to start a video call.', true); return; }
+    if (video && !(link.grantedCapabilities || link.capabilities || []).includes('camera-view')) { setStatus('Allow camera access for this agent to start a video call.', true); return; }
     selectedCallLinkId = link.id;
     callStartBusy = true; renderCallDirectory();
     const media = window.HexiGridDesktopMedia;
@@ -154,7 +156,7 @@
       if (!media?.setKind) throw new Error('Call audio controls are unavailable in this browser.');
       media.setMicrophoneMuted?.(false);
       media.setVoicePlaybackMuted?.(false);
-      const result = await api('/api/desktop-bridge/voice-call/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ linkId, approved: true }) });
+      const result = await api('/api/desktop-bridge/voice-call/start', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ linkId, video, approved: true }) });
       if (result.voiceCall?.linkId !== link.id) throw new Error('The call was not started for the selected agent.');
       if (video) window.HexiGridIncomingVoiceCall?.requestCameraOnAnswer?.(result.voiceCall.id);
       window.HexiGridIncomingVoiceCall?.update({ request: api, voiceCall: result.voiceCall, bridge: result.callBridge || bridge, media: media.state?.() || {} });

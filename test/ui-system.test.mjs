@@ -143,12 +143,11 @@ test('interactive regressions keep previews, activity, and bridge liveness hones
   assert.doesNotMatch(integrations, /aria-labelledby="confirmModalTitle"/);
   assert.doesNotMatch(renderers, /aria-labelledby="modalTitle"/);
   assert.match(renderers, /runnerProfiles[\s\S]*runtime\?\.running === true/);
-  assert.match(integrations, /const bridgeLive = activeSessionSelected && selectedOnline/);
+  assert.match(integrations, /const bridgeLive = activeSessionSelected && selectedPaired/);
   assert.match(integrations, /desktopBridgeDraftLinkId !== select\.value/);
-  assert.match(integrations, /const liveCameraSession = bridge\.enabled && bridge\.linkId === selectedLinkId && selectedLink\?\.status === 'online' && window\.HexiGridDesktopMedia\?\.sessionReady\?\.\(\)/);
-  assert.match(integrations, /selected Hexonaut is offline/);
+  assert.match(integrations, /bridgeRoot\.sessions\?\.\[select\.value\]/);
+  assert.doesNotMatch(integrations, /const bridgeLive = activeSessionSelected && selectedOnline/);
   assert.match(agentInterface, /HexiGridViewRenderers\.linkPresence\(link\)\.label/);
-  assert.match(agentInterface, /owner connection is offline/);
   assert.match(backup, /Loading backup history/);
 });
 
@@ -180,7 +179,8 @@ test('agent-record import is provider-neutral and keeps the optional iLands conn
   assert.doesNotMatch(integrations, /EXISTING ILANDS AGENT/);
   assert.match(integrations, /Connect an iLands account/);
   assert.match(integrations, /OPTIONAL CONNECTOR · ILANDS/);
-  assert.match(integrations, /Existing iLands agents cannot connect directly yet/);
+  assert.match(integrations, /To connect an agent already in the iLands app, choose Pair an existing agent in Agents/);
+  assert.doesNotMatch(integrations, /Existing iLands agents cannot connect directly yet/);
   assert.doesNotMatch(integrations, /Direct connection · Coming soon/);
   assert.doesNotMatch(integrations, /BYOA/);
   assert.match(integrations, /id="continuityPromptCopy"/);
@@ -211,7 +211,7 @@ test('agent-record import is provider-neutral and keeps the optional iLands conn
   assert.match(linkUi, /if \(state\.data\) appRendered\(\)/);
   assert.match(integrations, /const pendingLinkId = select\.value/);
   assert.match(integrations, /desktopBridgeSelectionTouched/);
-  assert.match(integrations, /bridge\.linkId \|\| desktopBridgeSelection \|\| pendingLinkId/);
+  assert.match(integrations, /desktopBridgeSelection \|\| pendingLinkId \|\| bridge\.linkId/);
   assert.match(integrations, /desktopBridgeDraft/);
   assert.match(integrations, /id="desktopBridgeRemoveLink"/);
   assert.match(integrations, /body: JSON\.stringify\(\{ purge: true, approved: true \}\)/);
@@ -222,7 +222,7 @@ test('agent-record import is provider-neutral and keeps the optional iLands conn
   assert.match(integrations, /data-runner-action="remove"/);
   assert.match(linkUi, /data-link-disconnect/);
   assert.match(linkUi, /\{ purge: true, approved: true \}/);
-  assert.match(linkUi, /Connected \$\{escapeHtml\(when\)\} · link/);
+  assert.match(linkUi, /Connected \$\{escapeHtml\(when\)\} · \$\{escapeHtml\(shortId\)\}/);
   const agents = await read('public/agent-ui.js');
   assert.match(agents, /data-action="remove-agent"/);
   assert.match(agents, /async function removeAgentById/);

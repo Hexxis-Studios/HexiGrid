@@ -34,7 +34,7 @@
           for (const item of deliveries) {
             const row = document.createElement('article'); row.className = 'record panel codex-delivery-row';
             const title = document.createElement('strong'); title.textContent = labels[item.delivery] || 'Pending review'; row.append(title);
-            const target = document.createElement('p'); target.textContent = `Target: ${item.threadName || item.threadId || 'Default conversation'} · ${item.createdAt || ''}`; row.append(target);
+            const target = document.createElement('p'); target.textContent = `Conversation: ${item.threadTitle || item.threadName || item.threadId || 'Default conversation'} · ${item.createdAt || ''}`; row.append(target);
             const id = document.createElement('code'); id.textContent = item.id; row.append(id);
             if (item.reviewRequired) {
               const note = document.createElement('p'); note.textContent = 'Delivery may already have happened. Inspect the target first. Dismiss removes pending reply tracking only; it never resends the message or stops Codex work.'; row.append(note);

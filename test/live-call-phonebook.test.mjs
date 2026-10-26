@@ -5,8 +5,9 @@ import { readFile } from 'node:fs/promises';
 
 const source = await readFile(new URL('../public/live-call.js', import.meta.url), 'utf8');
 
-test('Calls renders paired agents and starts the current computer-connected agent from one user action', async () => {
+test('Calls starts paired agents with idle heartbeats and keeps actual access restrictions', async () => {
   const calls = [];
+  const callRequests = [];
   const notifications = [];
   let ignoreContactSave = false;
   const list = { innerHTML: '' };
@@ -17,7 +18,7 @@ test('Calls renders paired agents and starts the current computer-connected agen
     settings: { desktopBridge: bridge },
     agents: [{ id: 'agent-exampleagent', name: 'ExampleAgent', accountLabel: 'Muse' }],
     agentLinks: [
-      { id: 'link-exampleagent', agentId: 'agent-exampleagent', status: 'online', authorizationStatus: 'connected', identity: { name: 'ExampleAgent', provider: 'Muse' }, capabilities: ['microphone-listen', 'speaker-output', 'camera-view'] },
+      { id: 'link-exampleagent', agentId: 'agent-exampleagent', status: 'offline', authorizationStatus: 'connected', identity: { name: 'ExampleAgent', provider: 'Muse' }, capabilities: ['messages'], grantedCapabilities: ['microphone-listen', 'speaker-output', 'camera-view'] },
       { id: 'link-other', status: 'connected', identity: { name: 'Another agent', provider: 'Local' }, capabilities: ['messages'] }
     ]
   } };
@@ -44,7 +45,10 @@ test('Calls renders paired agents and starts the current computer-connected agen
       return { settings: state.data.settings };
     }
     if (pathname === '/api/desktop-bridge') return { bridge };
-    if (pathname === '/api/desktop-bridge/voice-call/start') return { voiceCall: { id: 'call-1', linkId: 'link-exampleagent', direction: 'owner-to-agent', status: 'offered' } };
+    if (pathname === '/api/desktop-bridge/voice-call/start') {
+      callRequests.push(JSON.parse(options.body));
+      return { voiceCall: { id: 'call-1', linkId: 'link-exampleagent', direction: 'owner-to-agent', status: 'offered' } };
+    }
     throw new Error(`Unexpected call: ${pathname}`);
   };
   vm.runInNewContext(source, { document, window, state, api, notify: (...args) => notifications.push(args), location: { search: '' }, URLSearchParams, setTimeout() {}, clearTimeout, Date, String, Number, Boolean, Math, Promise, console });
@@ -53,6 +57,8 @@ test('Calls renders paired agents and starts the current computer-connected agen
   assert.match(list.innerHTML, /data-call-start="link-exampleagent"/);
   assert.match(list.innerHTML, /data-call-video="true"[^>]*aria-label="Video call ExampleAgent"/);
   assert.doesNotMatch(list.innerHTML, /data-call-start="link-exampleagent" disabled/);
+  assert.match(list.innerHTML, /Paired · Ready to call/);
+  assert.doesNotMatch(list.innerHTML, /Reconnect this agent to call/);
   assert.match(list.innerHTML, /data-call-start="link-other" disabled/);
 
   const target = { dataset: { callStart: 'link-exampleagent' } };
@@ -64,10 +70,43 @@ test('Calls renders paired agents and starts the current computer-connected agen
   ]);
   assert.ok(calls.includes('call-ui:offered'));
   assert.ok(!calls.some(call => call.startsWith('camera-on-answer:')));
+  assert.equal(callRequests.at(-1).video, false);
   target.dataset.callVideo = 'true';
   listeners.click({ target: { closest: selector => selector === '[data-call-start]' ? target : null } });
   await new Promise(resolve => setImmediate(resolve));
   assert.ok(calls.includes('camera-on-answer:call-1'));
+  assert.equal(callRequests.at(-1).video, true);
+
+  const pairedLink = state.data.agentLinks[0];
+  for (const heartbeat of ['degraded', 'online', 'offline']) {
+    pairedLink.status = heartbeat;
+    window.HexiGridLiveCall.renderCallDirectory();
+    assert.doesNotMatch(list.innerHTML, /data-call-start="link-exampleagent" disabled/);
+  }
+  const permissions = pairedLink.grantedCapabilities;
+  pairedLink.grantedCapabilities = ['microphone-listen'];
+  window.HexiGridLiveCall.renderCallDirectory();
+  assert.match(list.innerHTML, /data-call-start="link-exampleagent" disabled/);
+  pairedLink.grantedCapabilities = permissions;
+  bridge.enabled = false;
+  window.HexiGridLiveCall.renderCallDirectory();
+  assert.match(list.innerHTML, /data-call-start="link-exampleagent" disabled/);
+  bridge.enabled = true;
+  pairedLink.authorizationStatus = 'stale';
+  window.HexiGridLiveCall.renderCallDirectory();
+  assert.match(list.innerHTML, /data-call-start="link-exampleagent" disabled/);
+  const attemptsBefore = calls.length;
+  listeners.click({ target: { closest: selector => selector === '[data-call-start]' ? target : null } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, attemptsBefore, 'an invalid Link never starts capture or calls the API');
+  pairedLink.authorizationStatus = 'revoked';
+  window.HexiGridLiveCall.renderCallDirectory();
+  assert.doesNotMatch(list.innerHTML, /data-call-start="link-exampleagent"/);
+  listeners.click({ target: { closest: selector => selector === '[data-call-start]' ? target : null } });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(calls.length, attemptsBefore, 'a revoked Link cannot start capture or calls');
+  pairedLink.authorizationStatus = 'connected';
+  window.HexiGridLiveCall.renderCallDirectory();
 
   const linkSnapshot = JSON.stringify(state.data.agentLinks);
   await window.HexiGridLiveCall.setContactVisibility('link-other', false);

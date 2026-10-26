@@ -25,6 +25,26 @@ test('plain-language guide covers every built-in connection path and recovery ar
   }
 });
 
+test('beginner platform guides separate pairing, models, optional imports and media prerequisites', async () => {
+  const guides = await loadGuides();
+  for (const key of ['basics', 'existingAgent', 'muse', 'voices', 'speechSetup']) {
+    assert.ok(guides[key].steps.length >= 4, key);
+    assert.ok(guides[key].troubleshooting.length, key);
+  }
+  const nativeSteps = guides.ilands.steps.map(step => step.join(' ')).join('\n');
+  assert.doesNotMatch(nativeSteps, /Choose its thinking model|Upload it|Download the Markdown/);
+  assert.match(nativeSteps, /pairing does not install Android/);
+  assert.match(guides.existingAgent.note, /does not require importing memory/);
+  assert.match(guides.computerAccess.steps.flat().join(' '), /without manual handoffs|do not hand control/);
+  assert.match(guides.images.steps.flat().join(' '), /This service can also generate images/);
+  assert.match(guides.voices.steps.flat().join(' '), /provider receives the speech text and may charge/);
+  assert.match(guides.muse.steps.flat().join(' '), /same Chrome profile/);
+  const [human, agent] = await Promise.all(['PLATFORM-SETUP.md', 'AGENT-INTEGRATION-PROMPT.md'].map(file => readFile(new URL(`../docs/${file}`, import.meta.url), 'utf8')));
+  assert.match(human, /protected storage/);
+  assert.match(agent, /Do not replace an existing agent/);
+  assert.doesNotMatch(agent, /Present it as Coming soon; do not create a live-link invitation/);
+});
+
 test('every model connection has the same five-part zero-knowledge guide and current source links where applicable', async () => {
   const guides = await loadGuides();
   for (const key of ['openai','anthropic','gemini','huggingface','onDevice','ollama','lmstudio','compatibleApi','compatibleLocal','openCodeZen','cli','opencode','claudeCode','codex']) {

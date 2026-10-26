@@ -11,6 +11,7 @@ function renderAgentCard(item) {
 }
 
 function agentRosterAccountLabel(item) {
+  if (item.transport === 'local-opencode' && item.accountLabel === 'Local Codex') return 'Created in HexiGrid';
   if (usesPairedAgentModel(item) && item.accountLabel === "Existing iLands account") return "Agent profile";
   return item.accountLabel || "No account linked";
 }
@@ -55,7 +56,7 @@ function renderAgents() {
   $("#agentsList").innerHTML = agents.length ? agents.map((item) => {
     const link = agentRosterLink(item);
     const pairedModel = usesPairedAgentModel(item);
-    const connection = pairedModel ? link ? `Agent Link · ${link.id.slice(-8)}` : "No active link" : item.transport === "local-opencode" ? "Local AI" : `iLands · ${item.harness === "codex" ? "Codex" : "Claude Code"}`;
+    const connection = pairedModel ? link ? `Agent Link · ${link.id.slice(-8)}` : "No active link" : item.transport === "local-opencode" ? modelInfo(item.model)?.label || "Choose a model" : `iLands · ${item.harness === "codex" ? "Codex" : "Claude Code"}`;
     const presence = link ? agentRosterPresence(link) : pairedModel ? { label: "Offline", className: "" } : { label: statusLabel(item.status), className: statusClass(item.status) };
     const model = pairedModel ? "Managed in agent’s app" : modelInfo(item.model)?.label || item.model || "Default";
     return `<article class="agent-row"><div class="agent-row-main">${avatarMarkup(item)}<div><h4>${escapeHtml(agentListLabel(item))}</h4><p>${escapeHtml(agentRosterAccountLabel(item))}</p><small class="agent-row-mobile-connection">${escapeHtml(connection)} · ${escapeHtml(presence.label)}</small></div></div><div class="agent-row-detail"><span>CONNECTION</span><strong>${escapeHtml(connection)}</strong><small class="agent-row-compact-status">${escapeHtml(presence.label)}</small></div><div class="agent-row-detail"><span>MODEL</span><strong>${escapeHtml(model)}</strong></div><div class="agent-row-detail"><span>STATUS</span><strong class="${presence.className}">${escapeHtml(presence.label)}</strong></div><div class="row-actions"><button class="mini-button" title="Duplicate profile" aria-label="Duplicate ${escapeHtml(agentListLabel(item))}" data-action="duplicate-agent" data-agent-id="${item.id}">+</button><button class="ghost-button" data-action="edit-agent" data-agent-id="${item.id}">Edit ↗</button><button class="ghost-button icon-action-button" title="Remove this agent" aria-label="Remove ${escapeHtml(agentListLabel(item))}" data-action="remove-agent" data-agent-id="${item.id}">×</button></div></article>`;
@@ -63,7 +64,7 @@ function renderAgents() {
 }
 
 function updateAgentConnectionSummary() {
-  $('#agentConnectionSummary').textContent = ({ 'ilands-link': 'Paired Agent Link', 'local-opencode': 'Independent local profile', 'ilands-runner': 'iLands Runner' })[$('#transport').value] || 'Choose a profile source';
+  $('#agentConnectionSummary').textContent = ({ 'ilands-link': 'Paired Agent Link', 'local-opencode': 'Agent created in HexiGrid', 'ilands-runner': 'iLands Runner' })[$('#transport').value] || 'Choose a profile source';
   const item = state.editingAgentId ? agent(state.editingAgentId) : null;
   const providerManaged = ['ilands-link', 'agent-link'].includes($('#transport').value) || Boolean(item && agentRosterLink(item));
   $('#agentModel').innerHTML = providerManaged ? '' : modelOptions(item?.model || state.data.settings.model);

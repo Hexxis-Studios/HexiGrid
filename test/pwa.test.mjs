@@ -44,7 +44,7 @@ test('iOS icons, splash screens, and offline shell assets are present and wired'
   assert.match(html, /rel="apple-touch-startup-image"[^>]+splash-2048x2732\.png/);
   assert.match(html, /apple-mobile-web-app-capable" content="yes"/);
   assert.match(html, /name="theme-color" content="#090b10"/);
-  assert.match(policy, /hexigrid-shell-v207/, 'changed shared UI modules invalidate the cached shell');
+  assert.match(policy, /hexigrid-shell-v221/, 'changed shared UI modules invalidate the cached shell');
   assert.ok(policy.includes('/desktop-screen-capture.js'), 'screen-capture lifecycle changes must be fetched into the new shell');
   assert.deepEqual(await pngDimensions(path.join(publicRoot, 'apple-touch-icon-180.png')), [180, 180]);
   assert.deepEqual(await pngDimensions(path.join(publicRoot, 'splash-1170x2532.png')), [1170, 2532]);

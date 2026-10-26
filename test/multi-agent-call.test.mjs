@@ -49,7 +49,8 @@ test('audio cursors stay increasing when switching, and old captures/transcripts
   offer('b', true); answerVoiceCall('b'); selectVoiceCall('b');
   startDesktopMedia({ linkId:'b', microphoneGranted:true, speakerGranted:true, preserveSequences:true });
   const next = publishMicrophoneChunk('b', { mimeType:'audio/webm',data:'eA==',durationMs:500 }); assert.ok(next.sequence > previous.sequence);
-  assert.throws(() => readDesktopMicrophone('a',0), /not active/);
+  assert.throws(() => callMediaBridge(state, 'a'), /on hold/);
+  assert.ok(readDesktopMicrophone('b', 0).audio.every(chunk => chunk.sequence > previous.sequence));
   selectVoiceCall('a'); startDesktopMedia({linkId:'a',microphoneGranted:true,speakerGranted:true,preserveSequences:true});
   emit({type:'speech.transcript.final',text:'old synthetic audio'}); assert.equal(events.length,0);
   await handleDesktopBridgeRequest({}, {}, ctx); assert.equal(result.status,409);

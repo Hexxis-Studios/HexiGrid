@@ -6,6 +6,10 @@ HexiGrid works with local models, compatible cloud providers and agents connecte
 
 **Windows and browser alpha · available to invited testers.**
 
+**New here?** Follow [Set up HexiGrid, step by step](docs/PLATFORM-SETUP.md).
+It explains the words used in the app and gives separate paths for iLands,
+Muse, Codex, Claude Code, OpenCode, local models, images and voices.
+
 ## Download
 
 Open [Releases](https://github.com/Hexxis-Studios/HexiGrid/releases) and choose:
@@ -43,6 +47,10 @@ Closing the desktop window keeps HexiGrid in the Windows tray. Use **Quit HexiGr
 | **Settings** | Manage connections, models, usage, tools, permissions, backups and help. |
 
 The in-app **Help** includes searchable walkthroughs and screenshots. Start with the [how-to guide](docs/HOW-TO-GUIDE.md). Agents use the [agent integration instructions](docs/AGENT-INTEGRATION-PROMPT.md) and the live agent interface served by your app.
+
+An existing agent stays in its own app when paired. Creating an agent inside
+HexiGrid uses a model connection you choose. Importing an agent record is an
+optional data import; it is not required for ordinary pairing.
 
 ## Run in your browser from source
 

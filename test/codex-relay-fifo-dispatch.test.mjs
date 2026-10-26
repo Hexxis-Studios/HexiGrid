@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { codexRelayForLink, codexRelayConfigured, codexApprovedChats } from '../lib/codex-relay.mjs';
 
 function extractFunction(source, name) {
   const start = source.indexOf(`function ${name}(`);
@@ -24,9 +25,9 @@ test('Codex relay dispatches queued turns FIFO without awaiting earlier completi
   const firstTurn = new Promise((resolve) => { releaseFirst = resolve; });
   let running = false;
   const currentState = { settings: { codexRelay: { enabled: true, linkId: 'link', threadId: 'thread', forwardReplies: true } }, codexRelayPending: pending, agentLinks: [{ id: 'link', status: 'connected', agentId: 'agent', trustLevel: 'owner', identity: { name: 'Agent' } }] };
-  const drain = new Function('state', 'codexRelayRunning', 'shuttingDown', 'normalizeCodexRelay', 'codexRelayJobAuthorized', 'connectorPolicy', 'codexRelayPrompt', 'codexDesktopEnvironment', 'harnessCommand', 'resolveCodexThreadName', 'runCodexDesktopTurn', 'codexRelayAttempts', 'queueAgentLinkEvent', 'addReceipt', 'saveState', 'addActivity', 'ROOT', 'codexRelayReply', 'codexRelayFailureReason', 'codexRelayRetryTimer', `return (${implementation});`) (
+  const drain = new Function('state', 'codexRelayRunning', 'shuttingDown', 'codexRelayForLink', 'codexRelayJobAuthorized', 'connectorPolicy', 'codexRelayPrompt', 'codexDesktopEnvironment', 'harnessCommand', 'resolveCodexThreadName', 'runCodexDesktopTurn', 'codexRelayAttempts', 'queueAgentLinkEvent', 'addReceipt', 'saveState', 'addActivity', 'ROOT', 'codexRelayReply', 'codexRelayFailureReason', 'codexRelayRetryTimer', `return (${implementation});`) (
     currentState, running, false,
-    (relay) => relay,
+    relay => relay,
     (job, relay, connection) => Boolean(connection && relay.enabled && relay.linkId === job.linkId && relay.threadId === job.threadId),
     () => null,
     ({ text }) => text,
@@ -57,7 +58,7 @@ async function harness(run, jobs = [{ id: 'first', linkId: 'link', threadId: 'th
   const replies = [];
   let retries = 0;
   const dependencies = { state, codexRelayRunning: false, shuttingDown: false,
-    normalizeCodexRelay: value => value,
+    codexRelayForLink: value => value,
     codexRelayJobAuthorized: (job, relay, connection) => Boolean(connection && relay.enabled && relay.linkId === job.linkId),
     connectorPolicy: () => null, codexRelayPrompt: ({ text }) => text,
     codexDesktopEnvironment: async () => ({}), harnessCommand: () => ({ command: 'codex', prefixArgs: [] }),
@@ -70,6 +71,42 @@ async function harness(run, jobs = [{ id: 'first', linkId: 'link', threadId: 'th
   return { state, saved, replies, drain, attempts: dependencies.codexRelayAttempts, retries: () => retries };
 }
 async function flush() { for (let i = 0; i < 20; i++) await new Promise(resolve => setImmediate(resolve)); }
+
+test('two Link routes dispatch concurrently and return each reply only to its sender', async () => {
+  const source = await readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  const muse = { id: 'link-muse', status: 'connected', capabilities: ['messages'], tokenHash: 'muse-hash', identity: { name: 'Muse' } };
+  const ilander = { id: 'link-ilander', status: 'connected', capabilities: ['messages'], tokenHash: 'ilander-hash', identity: { name: 'iLander' } };
+  const state = { settings: { codexRelay: { enabled: true, linkId: muse.id, threadId: 'thread-original-123', forwardReplies: true,
+    routes: [{ enabled: true, linkId: ilander.id, threadId: 'thread-current-123', forwardReplies: true }] } }, codexRelayPending: [], agentLinks: [muse, ilander] };
+  const starts = [], replies = [];
+  let releaseMuse;
+  const museReply = new Promise(resolve => { releaseMuse = resolve; });
+  const dependencies = { state, codexRelayRunning: false, shuttingDown: false, codexRelayForLink, codexRelayConfigured, codexApprovedChats,
+    connectorPolicy: () => null, codexRelayPrompt: ({ text }) => text, now: () => new Date().toISOString(),
+    codexDesktopEnvironment: async () => ({}), harnessCommand: () => ({ command: 'codex', prefixArgs: [] }),
+    runCodexDesktopTurn: async ({ threadId, prompt, onSubmitted }) => {
+      starts.push({ threadId, prompt }); await onSubmitted({ threadId });
+      return prompt === 'muse-question' ? museReply : { threadId, content: 'ilander-answer' };
+    }, codexRelayAttempts: new Map(), queueAgentLinkEvent: (connection, event) => replies.push({ linkId: connection.id, ...event }),
+    addReceipt: () => {}, saveState: async () => {}, addActivity: () => {}, ROOT: process.cwd(),
+    codexRelayReply: text => text, codexRelayFailureReason: error => error.message, codexRelayRetryTimer: {}, retryCodexRelayWhenDesktopReturns: () => {} };
+  const api = new Function(...Object.keys(dependencies), `${extractFunction(source, 'codexRelayJobAuthorized')}\n${extractFunction(source, 'relayAgentLinkMessage')}\n${extractFunction(source, 'startCodexRelayDrain')}\nreturn { queue:relayAgentLinkMessage, drain:startCodexRelayDrain, authorized:codexRelayJobAuthorized };`)(...Object.values(dependencies));
+  assert.equal(api.queue(muse, { id: 'muse-message', text: 'muse-question' }), true);
+  assert.equal(api.queue(ilander, { id: 'ilander-message', text: 'ilander-question' }), true);
+  assert.equal(api.queue({ ...ilander, id: 'link-unconfigured' }, { id: 'unapproved-message', text: 'blocked' }), false);
+  api.drain(); await flush();
+  assert.deepEqual(starts, [{ threadId: 'thread-original-123', prompt: 'muse-question' }, { threadId: 'thread-current-123', prompt: 'ilander-question' }]);
+  assert.deepEqual(replies.map(reply => [reply.linkId, reply.metadata.sourceMessageId]), [[ilander.id, 'ilander-message']]);
+  releaseMuse({ threadId: 'thread-original-123', content: 'muse-answer' }); await flush();
+  assert.deepEqual(replies.map(reply => [reply.linkId, reply.text]), [[ilander.id, 'ilander-answer'], [muse.id, 'muse-answer']]);
+  const job = { linkId: ilander.id, tokenHash: ilander.tokenHash, threadId: 'thread-current-123' };
+  const route = codexRelayForLink(state.settings.codexRelay, ilander.id);
+  assert.equal(api.authorized(job, route, ilander), true);
+  assert.equal(api.authorized(job, { ...route, enabled: false }, ilander), false);
+  assert.equal(api.authorized(job, route, { ...ilander, capabilities: [] }), false);
+  assert.equal(api.authorized(job, route, { ...ilander, tokenHash: 'rotated' }), false);
+  assert.equal(api.authorized(job, codexRelayForLink(state.settings.codexRelay, muse.id), muse), false);
+});
 
 test('failed desktop startup retains durable intent and retry sends once', async () => {
   let calls = 0;

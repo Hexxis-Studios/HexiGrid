@@ -64,19 +64,22 @@
     <section data-resource="current-policy"><h2>Current policy</h2><dl id="agentPolicy"></dl></section>
     <section id="codex-routing" data-resource="codex-relay" aria-labelledby="codexRelayTitle">
       <h2 id="codexRelayTitle">Codex conversations</h2>
-      <p>Choose the default Codex conversation for a paired Link. Owner-trusted Links can also address existing conversations by exact name when that option is enabled. Codex must be running on this computer.</p>
-      <div id="agentCodexDeliveries"></div>
+      <p>Choose an agent and the Codex chat it can message. Settings are saved separately for each agent. Codex must be running on this computer.</p>
 <form id="codexRelayForm">
-        <label for="codexRelayLink">Paired agent link</label>
+        <label for="codexRelayLink">Agent</label>
         <select id="codexRelayLink"><option value="">Choose a connected link</option></select>
-        <label for="codexRelayThread">Codex thread ID</label>
-        <input id="codexRelayThread" inputmode="text" autocomplete="off" placeholder="Paste the existing Codex thread ID" />
+        <label for="codexRelayThread">Default conversation</label>
+        <select id="codexRelayThread"><option value="">Choose a conversation</option></select>
+        <button id="loadCodexConversations" type="button">Load conversations</button>
+        <fieldset><legend>Conversations this agent may message</legend><div id="codexApprovedChats" aria-describedby="codexApprovedChatsHelp"></div></fieldset>
+        <small id="codexApprovedChatsHelp">The default conversation is included. Select any additional conversations to share with this agent.</small>
         <label><input id="codexRelayReplies" type="checkbox" checked /> Return Codex replies through the link</label>
-        <label><input id="codexRelayNamedThreads" type="checkbox" /> Let this owner-trusted Link address existing Codex conversations by exact name</label>
-        <label><input id="codexRelayEnabled" type="checkbox" /> Enable the relay</label>
-        <button type="submit">Save relay</button>
+        <details><summary>Advanced access</summary><label for="codexManualThread">Conversation ID (if it is missing from the list)</label><input id="codexManualThread" autocomplete="off" /><label><input id="codexRelayNamedThreads" type="checkbox" /> Allow access to all Codex conversations and creation of new chats (requires owner-agent trust)</label></details>
+        <label><input id="codexRelayEnabled" type="checkbox" /> Allow messages to this chat</label>
+        <button type="submit">Save</button>
         <small id="codexRelayFeedback" role="status" aria-live="polite"></small>
       </form>
+      <details><summary>Pending messages</summary><div id="agentCodexDeliveries"></div></details>
     </section>
     <section id="computer-access" data-resource="desktop-bridge" aria-labelledby="desktopBridgeTitle">
       <h2 id="desktopBridgeTitle">Computer access</h2>

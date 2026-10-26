@@ -1,73 +1,122 @@
-# Call chat connection
+# Connect Muse calls to a Chrome chat
 
-This optional Windows/Linux Chrome companion delivers accepted-call transcription to
-the conversation the owner selects. It uses the existing Link, local speech
-recognition, voice-call/reply and retained call chat. It does not create a second
-agent, model session, call engine or recurring model worker.
+Use this optional helper when your paired Muse agent needs a chat message to
+receive your speech and answer. Choose the conversation calls should use once;
+after that, use HexiGrid's normal **Call**, **Video** and **Accept** controls.
+Your agent stays the same agent, with its own Link and available voice.
 
-The first adapter supports Muse main or side chats. Other providers need their
-own tested conversation adapter; installing this does not establish universal
-provider support. A side chat is pinned to its exact URL and title. The owner may
-replace or disconnect that selection through the extension popup. Main chat is
-never silently selected. Existing drafts are never overwritten.
+This alpha supports the tested Muse chat adapter. Installing it does not make
+other websites compatible. It is not needed if your agent already has a working
+call responder. Use only one delivery method to avoid duplicate messages.
 
-## Intended user experience
+## Before you start
 
-During agent connection, the user chooses the conversation calls should use.
-After that, Call/Video/Answer use the saved selection automatically. A provider
-with a supported conversation API can use that instead of a browser companion.
-No user should need polling commands, capability reconciliation, a developer
-folder or repeated approvals during ordinary calls.
+- Pair the agent with HexiGrid and verify an ordinary Link request.
+- Install Google Chrome and sign into Muse in the Chrome profile you want to use.
+- Keep HexiGrid running on this PC. Set up [local transcription](../../docs/WINDOWS-SPEECH-SETUP.md)
+  if it reports missing speech tools.
+- This alpha uses a manually loaded extension; it is not a Chrome Web Store
+  download. Use only the helper included with your verified HexiGrid release.
 
-The steps below are development installation, not an accepted end-user flow.
-Before release this browser-specific adapter needs guided installation and
-connection in HexiGrid; publishing an extension requires the owner's separate
-release approval. No universal provider acceptance is implied.
+A **Chrome profile** is a separate browser identity with its own sign-ins and
+extensions. The helper and Muse must be in the same profile. Signing into Muse
+in a different profile will not connect them.
 
-## Development setup
+## 1. Prepare the connection on Windows
 
-1. Prepare with `node scripts/prepare-call-browser.mjs` (.NET 9 SDK required).
-2. Register the user-level host with the same command plus `--register`.
-3. In Chrome Extensions, load `integrations/call-browser/extension` as unpacked.
-4. Open the chosen conversation. In **HexiGrid Call Chat**, choose the paired
-   agent and click **Use this chat for calls**. Chrome asks for Muse site access.
+### Installed desktop app
 
-Call input is pushed over an authenticated loopback event stream and native
-messaging. The credential stays in the OS vault and the native process; it never
-enters the extension, page, query string or ordinary JSON. No Chrome cookies are
-read or copied. Only transcript turns from the active, unmuted, approved call
-are dispatched. Effective external-write policy and the existing Link/device
-grants remain required. No new agent grants are issued.
+1. In the Start menu, right-click HexiGrid and choose **Open file location**.
+   If you see a shortcut, right-click it and choose **Open file location** again.
+2. Open **resources**, then **engine**.
+3. Click File Explorer's address bar, type `powershell`, and press Enter.
+4. For the standard desktop workspace, run:
 
-Submitted means a matching owner message was observed in the selected chat;
-it does not mean the agent answered or that speakers played. Uncertain sends
-are not automatically retried. End/mute/revocation prevents pending claims.
-Spoken replies should include the exact call ID to reject late replies. The
-paired agent still supplies its own cognition and voice through its existing
-signed Link. Speech must be owner-authorized content; browser text never grants
-new privileges. No old chat history is sent to another model.
+   ```powershell
+   $env:HEXIGRID_DATA_DIR = Join-Path $env:APPDATA 'HexiGrid\workspace'
+   & '..\runtime\node.exe' '.\scripts\prepare-call-browser.mjs' --register
+   ```
 
-## Upstream decision and current limits
+   If you deliberately use a custom app-data folder, select its `workspace`
+   folder instead. Do not select another installation's workspace.
+5. Keep this folder open. The command reports the extension folder and
+   `registered:true`. The desktop download includes the helper runtime; a
+   separate .NET installation is not needed for this path.
 
-Inspected the existing VoiceAgentRuntime, call routes and local transcription;
-no existing browser conversation adapter was found. Reuse their call/cognition
-boundary. The browser component follows Chrome's documented Manifest V3 Native
-Messaging API and the official GoogleChrome/chrome-extensions-samples native
-messaging example (current repository Apache-2.0; archived sample files carry
-BSD-style license headers; no source copied). API documentation inspected
-6 October 2026: https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging
-Reference revision: `f29c6f8682397ad737142669770a2b90544d186b`, archived sample:
-https://github.com/GoogleChrome/chrome-extensions-samples/tree/f29c6f8682397ad737142669770a2b90544d186b/_archive/mv2/api/nativeMessaging
-Microsoft .NET SDK 9.0.312 builds the small local stdio launcher; Node uses the
-already installed eventsource-parser 3.1.1. No new paid service or npm dependency.
+### Source installation
 
-On Linux, registration writes a per-user native-host manifest for installed
-Google Chrome or Chromium. It does not install packages or change system-wide
-browser settings. Other Chromium distributions may need their documented
-native-messaging manifest location.
+1. Open PowerShell in your HexiGrid source folder.
+2. Install the [.NET 9 SDK](https://dotnet.microsoft.com/en-us/download/dotnet/9.0)
+   if it is not already installed. This builds the helper locally.
+3. Run `node scripts/prepare-call-browser.mjs --register`.
+   If your server uses a custom `HEXIGRID_DATA_DIR`, use that same value here.
+4. Confirm the result says `registered:true` and keep the reported extension
+   folder path. Do not paste private workspace files into chat for help.
 
-This is an initial adapter, not launch acceptance. Browser installation,
-permission approval, actual Muse submission, same-agent signed replies, continuous
-spoken conversation and reconnect must be verified. Opening a missing chat is
-safe, but the current turn is left in local history rather than automatically
-resent. Calls currently require HexiGrid's existing owner page and media session.
+Registration connects Chrome to the small helper on your PC for your Windows
+user. It does not sign into Muse or give an agent new permissions. If it fails,
+keep the safe error instead of repeatedly creating agent invitations.
+
+## 2. Add the Chrome extension once
+
+1. In the Chrome profile containing your Muse sign-in, open **Extensions →
+   Manage extensions**.
+2. Turn on **Developer mode**. This allows loading the local extension folder;
+   it does not require disabling browser security.
+3. Choose **Load unpacked** and select `integrations\call-browser\extension`
+   inside the app's `resources\engine` folder, or inside your source folder.
+   Select the folder containing `manifest.json`, not an individual file.
+4. Find **HexiGrid Call Chat** in Chrome's Extensions menu. Pin it if you want
+   an easy-to-find button.
+
+Do not load a replacement sent by a stranger or disable certificate checks.
+After an app update, reload the extension if Chrome reports its files changed.
+
+## 3. Choose the conversation
+
+1. Open the Muse conversation you want calls to use. A dedicated Calls chat or
+   the main conversation can be selected; choose deliberately.
+2. Open **HexiGrid Call Chat** from Chrome's Extensions menu.
+3. Choose the matching paired **Agent**. Set a recognizable **Call chat name**.
+4. Choose **Use this chat for calls**. Approve Muse site access if you want to
+   connect this conversation.
+5. Confirm it says **Connected**. Keep that chat available during calls.
+
+To change the chat, repeat these steps on the new conversation. To stop this
+route, use **Disconnect call chat** in the helper. Removing the Chrome extension
+also stops its delivery. Revoking the agent's Link stops its signed access.
+
+## 4. Test one sentence
+
+1. Start or accept a call in HexiGrid.
+2. Say a short sentence. Check it appears in the selected Muse conversation.
+3. Wait for the agent's answer and confirm you hear it.
+4. Minimize Chrome and repeat while another app is in front.
+
+If speech appears in HexiGrid's transcript but not in Muse, check the helper,
+Chrome profile and selected chat. If it reaches Muse but no answer arrives,
+check the agent's call responder. If an answer arrives without sound, check
+volume, output device and the call's playback notice. Do not replace the Link
+to fix an audio-device problem.
+
+## Privacy and delivery limits
+
+Your spoken text is sent to the selected Muse conversation. Treat it like a
+message you typed there. Microphone access and effective agent permissions
+still apply. Credentials remain in the OS vault/native helper, not the web page
+or extension. Browser cookies are not copied.
+
+The helper does not overwrite an existing draft. If it cannot tell whether a
+message was sent, it does not automatically send it again. Check the transcript
+before retrying. A submitted message does not prove the agent answered or that
+sound played. End, mute and revocation prevent pending call turns from being sent.
+
+## Technical references and attribution
+
+The helper uses Chrome Manifest V3 Native Messaging, .NET 9 and the existing
+local call/transcription paths. No new paid service is required.
+
+- [Chrome Native Messaging documentation](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
+- [Google's native messaging example](https://github.com/GoogleChrome/chrome-extensions-samples/tree/f29c6f8682397ad737142669770a2b90544d186b/_archive/mv2/api/nativeMessaging),
+  revision `f29c6f8682397ad737142669770a2b90544d186b`. Repository Apache-2.0;
+  archived sample files have BSD-style headers. Used as a reference; no source copied.

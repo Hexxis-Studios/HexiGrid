@@ -92,6 +92,30 @@ test('a live bridge can start one media kind after service restart without reviv
   assert.throws(() => setDesktopMediaKind('link-2', 'microphone', true), /not active/);
 });
 
+test('concurrent Links retain separate audio queues and share camera only with enabled recipients', () => {
+  resetDesktopMediaForTests();
+  startDesktopMedia({linkId: 'one', cameraGranted: true, microphoneGranted: true, speakerGranted: true});
+  publishMicrophoneChunk('one', {mimeType: 'audio/webm', data: 'b25l'});
+  publishSpeakerChunk('one', {mimeType: 'audio/wav', data: 'b25l'});
+  startDesktopMedia({linkId: 'two', cameraGranted: true, microphoneGranted: true, speakerGranted: true});
+  publishMicrophoneChunk('two', {mimeType: 'audio/webm', data: 'dHdv'});
+  publishSpeakerChunk('two', {mimeType: 'audio/wav', data: 'dHdv'});
+  const scopes = ['camera-view', 'microphone-listen', 'speaker-output'];
+  assert.deepEqual(readDesktopMedia('one', scopes).audio.map(item => item.data), ['b25l']);
+  assert.deepEqual(readDesktopMedia('two', scopes).speaker.map(item => item.data), ['dHdv']);
+  publishCameraFrame('two', {mimeType: 'image/jpeg', data: 'eA==', width: 1, height: 1});
+  assert.equal(readDesktopMedia('one', scopes).camera.data, 'eA==');
+  stopDesktopMediaKind('camera', 'owner-media-stop', 'one');
+  publishCameraFrame('two', {mimeType: 'image/jpeg', data: 'eQ==', width: 1, height: 1});
+  assert.equal(readDesktopMedia('one', scopes).camera, null);
+  assert.equal(readDesktopMedia('two', scopes).camera.data, 'eQ==');
+  stopDesktopMedia('link-revoked', 'one');
+  assert.throws(() => readDesktopMedia('one', scopes), /not active/);
+  assert.equal(readDesktopMedia('two', scopes).audio[0].data, 'dHdv');
+  stopDesktopMedia('owner-stop');
+  assert.throws(() => readDesktopMedia('two', scopes), /not active/);
+});
+
 test('self-managed media grants cannot override an explicit owner pause', () => {
   startDesktopMedia({ linkId: 'link-owner-pause', microphoneGranted: true, speakerGranted: true });
   stopDesktopMediaKind('microphone', 'owner-media-stop');

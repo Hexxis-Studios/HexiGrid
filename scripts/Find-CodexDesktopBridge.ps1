@@ -16,7 +16,7 @@ Add-Type -TypeDefinition $native
 $approved = @{}
 $foundPipes = @()
 foreach ($entry in (Get-ChildItem -LiteralPath '\\.\pipe\' -ErrorAction Stop)) {
-  if ($entry.Name -notmatch '^codex-browser-use-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { continue }
+  if ($entry.Name -notmatch '^codex-(app-tools|browser-use)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$') { continue }
   $pipePath = '\\.\pipe\' + $entry.Name
   $handle = [HexiGridPipeOwner]::CreateFile($pipePath, 0, 3, [IntPtr]::Zero, 3, 0, [IntPtr]::Zero)
   if ($handle.ToInt64() -eq -1) { continue }

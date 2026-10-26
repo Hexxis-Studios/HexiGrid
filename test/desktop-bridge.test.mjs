@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import {
   captureDesktopFrame,
+  coordinateDesktopRequest,
   actDesktopUia,
   clearDesktopUiaTargets,
   defaultDesktopBridge,
@@ -21,6 +22,7 @@ import {
 } from '../lib/desktop-bridge.mjs';
 import { desktopBridgeFramePayload } from '../lib/desktop-bridge-routes.mjs';
 import { publishBrowserDesktopFrame, resetBrowserDesktopFrameForTests } from '../lib/desktop-screen.mjs';
+import { callMediaBridge } from '../lib/call-media-authority.mjs';
 
 test.beforeEach(() => resetBrowserDesktopFrameForTests());
 test.beforeEach(() => clearDesktopUiaTargets());
@@ -30,6 +32,19 @@ test('desktop bridge starts with no computer permission', () => {
   assert.equal(initial.enabled, false);
   assert.equal(initial.controlGranted, false);
   assert.equal(publicDesktopBridge(initial, { platform: 'linux' }).supported, false);
+});
+
+test('camera-only access survives normalization without granting screen view or control', () => {
+  const bridge = startDesktopBridge(null, { linkId: 'camera-only', viewGranted: false, cameraGranted: true });
+  const restored = normalizeDesktopBridge(JSON.parse(JSON.stringify(bridge)));
+  assert.equal(restored.enabled, true);
+  assert.equal(restored.viewGranted, false);
+  assert.equal(restored.controlGranted, false);
+  assert.equal(callMediaBridge({ settings: { desktopBridge: restored } }, 'camera-only').mediaGrants.camera, true);
+  assert.throws(() => desktopBridgeAuthorized(restored, { linkId: 'camera-only', capability: 'desktop-view' }), /not granted screen/);
+  assert.throws(() => desktopBridgeAuthorized(restored, { linkId: 'camera-only', capability: 'desktop-control' }), /not granted computer/);
+  assert.throws(() => startDesktopBridge(null, { linkId: 'camera-only', viewGranted: false, cameraGranted: true, controlGranted: true }), /without screen view/);
+  assert.throws(() => startDesktopBridge(null, { linkId: 'camera-only', viewGranted: false }), /Choose screen view or a media permission/);
 });
 
 test('saved media grants survive normalization but stop and owner-pause remain explicit', () => {
@@ -301,4 +316,86 @@ test('desktop view falls back to the owner browser when Windows native capture i
   assert.equal(frame.source, 'owner-browser');
   assert.equal(frame.data.toString(), 'owner-screen');
   assert.equal(desktopBridgeFramePayload(frame).source, 'owner-browser');
+});
+
+
+test('parallel sharing preserves approved control for both Links and honors global takeover', async () => {
+  const {desktopBridgeSession, publicDesktopBridge} = await import('../lib/desktop-bridge.mjs');
+  let bridge = startDesktopBridge({}, {linkId: 'first', viewGranted: true, controlGranted: true, textGranted: true});
+  bridge = startDesktopBridge(bridge, {linkId: 'second', viewGranted: true, controlGranted: true, textGranted: true, cameraGranted: true});
+  assert.equal(desktopBridgeAuthorized(bridge, {linkId: 'first', capability: 'desktop-control'}).enabled, true);
+  assert.equal(desktopBridgeAuthorized(bridge, {linkId: 'second', capability: 'desktop-control'}).enabled, true);
+  assert.equal(desktopBridgeSession(bridge, 'second').mediaGrants.camera, true);
+  assert.equal(publicDesktopBridge(bridge, {includeSessions: false}).sessions, undefined, 'signed snapshots can exclude other Links');
+  bridge = takeDesktopControl(bridge);
+  assert.throws(() => desktopBridgeAuthorized(bridge, {linkId: 'first', capability: 'desktop-control'}), /paused/);
+  assert.throws(() => desktopBridgeAuthorized(bridge, {linkId: 'second', capability: 'desktop-control'}), /paused/);
+  const resumed = resumeDesktopControl(bridge);
+  for (const linkId of ['first', 'second']) assert.equal(desktopBridgeAuthorized(resumed, {linkId, capability: 'desktop-control'}).agentControlActive, true);
+  bridge = stopDesktopBridge(bridge, 'agent-stop', 'second');
+  assert.equal(bridge.linkId, 'first');
+  assert.equal(desktopBridgeSession(bridge, 'second').enabled, false);
+  bridge = stopDesktopBridge(bridge, 'owner-stop');
+  assert.deepEqual(bridge.sessions, {});
+});
+
+test('camera-only startup cannot undo global owner takeover, including legacy saved sessions', () => {
+  let bridge = takeDesktopControl(startDesktopBridge({}, { linkId: 'paused-owner', viewGranted: true, controlGranted: true }));
+  delete bridge.ownerControlPaused;
+  bridge = normalizeDesktopBridge(bridge);
+  assert.equal(bridge.ownerControlPaused, true);
+  bridge = startDesktopBridge(bridge, { linkId: 'camera-new', viewGranted: false, cameraGranted: true });
+  assert.equal(bridge.ownerControlPaused, true);
+  assert.throws(() => desktopBridgeAuthorized(bridge, { linkId: 'paused-owner', capability: 'desktop-control' }), /owner took over/);
+});
+
+test('desktop requests coordinate across agents, reject stale views and recover after failures', async () => {
+  const order = [];
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const options = linkId => ({ linkId, authorize: () => ({ startedAt: 'coordination-session' }) });
+  const observe = linkId => coordinateDesktopRequest({ ...options(linkId), observe: true }, async () => { order.push(`${linkId}:view`); });
+  await observe('coord-a');
+  const first = coordinateDesktopRequest(options('coord-a'), async () => { order.push('a:start'); await gate; order.push('a:end'); });
+  const secondView = observe('coord-b');
+  const second = coordinateDesktopRequest(options('coord-b'), async () => { order.push('b:action'); });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(order, ['coord-a:view', 'a:start']);
+  release(); await Promise.all([first, secondView, second]);
+  assert.deepEqual(order, ['coord-a:view', 'a:start', 'a:end', 'coord-b:view', 'b:action']);
+  await assert.rejects(coordinateDesktopRequest(options('coord-a'), () => assert.fail('stale action must not dispatch')), { code: 'DESKTOP_VIEW_STALE' });
+  await observe('coord-a');
+  await assert.rejects(coordinateDesktopRequest(options('coord-a'), async () => { throw Error('synthetic helper failure'); }), /synthetic helper failure/);
+  await observe('coord-b');
+  await coordinateDesktopRequest(options('coord-b'), async () => { order.push('b:recovered'); });
+  assert.equal(order.at(-1), 'b:recovered');
+});
+
+test('queued desktop actions recheck owner takeover or revoked authority before dispatch', async () => {
+  let allowed = true, release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const options = { linkId: 'queued-revoke', authorize: () => { if (!allowed) throw Object.assign(Error('owner took over'), { status: 403 }); return { startedAt: 'revoke-session' }; } };
+  await coordinateDesktopRequest({ ...options, observe: true }, async () => {});
+  const pending = coordinateDesktopRequest(options, async () => { await gate; });
+  const denied = coordinateDesktopRequest(options, () => assert.fail('queued revoked action must not dispatch'));
+  const pendingCheck = assert.rejects(pending, error => error.status === 403 && error.mayHaveApplied === true);
+  const deniedCheck = assert.rejects(denied, error => error.status === 403 && !error.mayHaveApplied);
+  await new Promise(resolve => setImmediate(resolve));
+  allowed = false; release();
+  await Promise.all([pendingCheck, deniedCheck]);
+});
+
+test('native input revalidates authority after writing its private request but before dispatch', async () => {
+  await assert.rejects(dispatchDesktopInput({ kind: 'text.type', text: 'synthetic' }, { platform: 'win32', authorize() { throw Error('revoked before spawn'); }, spawnFn() { assert.fail('no native helper after revocation'); } }), /revoked before spawn/);
+});
+
+test('owner takeover and resume require a new observation rather than replaying old input', async () => {
+  let bridge = startDesktopBridge({}, { linkId: 'takeover-observation', viewGranted: true, controlGranted: true });
+  const options = { linkId: 'takeover-observation', authorize: () => desktopBridgeAuthorized(bridge, { linkId: 'takeover-observation', capability: 'desktop-control' }) };
+  await coordinateDesktopRequest({ ...options, observe: true }, async () => {});
+  await coordinateDesktopRequest(options, async () => {});
+  bridge = resumeDesktopControl(takeDesktopControl(bridge));
+  await assert.rejects(coordinateDesktopRequest(options, () => assert.fail('old view cannot authorize a resumed action')), { code: 'DESKTOP_VIEW_STALE' });
+  await coordinateDesktopRequest({ ...options, observe: true }, async () => {});
+  await coordinateDesktopRequest(options, async () => {});
 });

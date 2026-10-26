@@ -2,4 +2,5 @@
 **/*.pyc
 integrations/ilands-door/
 test/
+scripts/serve-agent-practice.mjs
 data/.development-fresh-start

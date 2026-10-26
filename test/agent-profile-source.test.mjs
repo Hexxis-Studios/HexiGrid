@@ -80,7 +80,7 @@ test('editing a paired profile preserves its Link source, including recovery fro
   context.openAgentModal(item.id);
   assert.equal($('#transport').value, 'local-opencode');
   assert.equal($('#transport').disabled, false);
-  assert.equal($('#agentConnectionSummary').textContent, 'Independent local profile');
+  assert.equal($('#agentConnectionSummary').textContent, 'Agent created in HexiGrid');
   assert.equal($('#agentModel').disabled, false);
   assert.equal($('#agentLocalModelField').hidden, false);
   assert.equal($('#agentProviderModelNote').hidden, true);

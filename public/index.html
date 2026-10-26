@@ -1476,7 +1476,7 @@ HexiGrid safe terminal. Type help to see available commands.</pre
             <section class="agent-profile-primary" aria-label="Identity and behavior">
               <div class="agent-profile-heading"><span class="eyebrow">IDENTITY</span><span id="agentConnectionSummary" class="agent-profile-source"></span></div>
               <div class="form-grid two-col"><label for="agentName">Display name<input id="agentName" required placeholder="e.g. Atlas" /></label><label for="accountLabel">Account label<input id="accountLabel" placeholder="e.g. personal account" /></label></div>
-              <div id="agentLocalModelField"><label for="agentModel">Local reply model<select id="agentModel"></select></label><p class="microcopy">Used when this local profile answers in HexiGrid.</p></div>
+              <div id="agentLocalModelField"><label for="agentModel">Response model<select id="agentModel"></select></label><p class="microcopy">This model answers as the agent in HexiGrid. Conversations in the provider’s own app are separate.</p></div>
               <div id="agentProviderModelNote" class="agent-provider-model-note" hidden><strong>Model managed in the agent’s app</strong><p>This profile receives replies through its Agent Link. Choose its model in the app where the agent runs.</p></div>
               <label for="personality">Personality<textarea id="personality" rows="3" placeholder="Identity, voice, temperament, values, strengths&hellip;"></textarea></label>
               <label class="checkbox-control agent-profile-communication"><input id="agentUseGlobalCommunication" type="checkbox" /> Use the global &ldquo;How agents talk&rdquo; guide</label>
@@ -1518,7 +1518,7 @@ HexiGrid safe terminal. Type help to see available commands.</pre
 </div></details>
             <details id="agentConnectionDisclosure" class="agent-profile-section"><summary>Connection details</summary><div class="agent-profile-section-body">
               <p class="microcopy">Existing paired Links keep their connection. Runner fields apply only to iLands Runner profiles.</p>
-              <label for="transport">Profile source<select id="transport"><option value="ilands-link" disabled>Paired Agent Link</option><option value="local-opencode">Independent local profile</option><option value="ilands-runner">iLands Runner</option></select></label>
+              <label for="transport">Profile source<select id="transport"><option value="ilands-link" disabled>Paired Agent Link</option><option value="local-opencode">Agent created in HexiGrid</option><option value="ilands-runner">iLands Runner</option></select></label>
               <div class="form-grid two-col"><label for="harness">iLands Runner harness<select id="harness"><option value="codex">Codex</option><option value="claude-code">Claude Code</option></select></label><label for="ilandsAgentId">iLands agent ID<input id="ilandsAgentId" placeholder="Paste after iLands confirms the connection" /></label></div>
               <label for="runnerHome">Runner home<input id="runnerHome" placeholder="C:&#92;private&#92;runner-agent-1" /></label>
               <label for="externalEmail">Agent email<input id="externalEmail" type="email" maxlength="320" autocomplete="off" placeholder="Their working agent email address" /></label>

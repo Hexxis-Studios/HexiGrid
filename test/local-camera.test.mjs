@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { captureLocalCamera, videoDevices } from '../lib/local-camera.mjs';
-import { ensureAgentCamera, publicDesktopMedia, readDesktopMedia, resetDesktopMediaForTests, setDesktopMediaKind, stopDesktopMediaKind } from '../lib/desktop-media.mjs';
+import { ensureAgentCamera, publicDesktopMedia, publishCameraFrame, readDesktopMedia, resetDesktopMediaForTests, setDesktopMediaKind, stopDesktopMediaKind } from '../lib/desktop-media.mjs';
 import { assertAgentLinkCapabilityUpdate, normalizeAgentLinks, publicAgentLink, toggleOwnerAgentLinkCapabilities, updateAgentLinkCapabilities } from '../lib/agent-link.mjs';
 import { setOwnerAgentTrust } from '../lib/owner-agent-access.mjs';
 
@@ -69,4 +69,29 @@ test('camera starts on authorized read; revocation aborts in-flight capture and 
   await assert.rejects(ensureAgentCamera('qa', authorize, { capture }), /revoked/);
   assert.equal(publicDesktopMedia().cameraActive, false);
   resetDesktopMediaForTests();
+});
+
+test('fresh observations capture again and wait for a new browser frame instead of reusing the last image', async t => {
+  resetDesktopMediaForTests(); t.after(resetDesktopMediaForTests);
+  let captures = 0;
+  const frame = { mimeType: 'image/jpeg', data: 'eA==', width: 640, height: 480 };
+  const capture = async () => { captures++; return frame; };
+  await ensureAgentCamera('fresh-qa', () => {}, { capture, fresh: true });
+  await ensureAgentCamera('fresh-qa', () => {}, { capture, fresh: true });
+  assert.equal(captures, 2);
+  assert.equal(readDesktopMedia('fresh-qa', ['camera-view']).camera.sequence, 2);
+  publishCameraFrame('fresh-qa', frame);
+  let settled = false;
+  const next = ensureAgentCamera('fresh-qa', () => {}, { capture, fresh: true }).then(() => { settled = true; });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(settled, false, 'the existing browser frame is not a new observation');
+  publishCameraFrame('fresh-qa', { ...frame, data: 'eQ==' });
+  await next;
+  assert.equal(captures, 2, 'do not open another camera while the browser owns it');
+  assert.equal(readDesktopMedia('fresh-qa', ['camera-view']).camera.data, 'eQ==');
+  const revoked = ensureAgentCamera('fresh-qa', () => {}, { capture, fresh: true });
+  stopDesktopMediaKind('camera', 'owner-camera-off');
+  await assert.rejects(revoked, /access changed/);
+  await assert.rejects(ensureAgentCamera('fresh-qa', () => {}, { capture, fresh: true }), /paused/);
+  assert.equal(readDesktopMedia('fresh-qa', ['camera-view']).camera, null);
 });

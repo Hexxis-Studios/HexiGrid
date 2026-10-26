@@ -2,6 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { agentLinkOrientation } from '../lib/agent-link-orientation.mjs';
 
+test('Codex messaging discovery reveals only this Link’s approved chat and does not inherit another route', () => {
+  const link = { id: 'link-ilander', status: 'connected', trustLevel: 'scoped', capabilities: ['messages'] };
+  const settings = { codexRelay: { enabled: true, linkId: 'link-muse', threadId: 'thread-private-muse', allowNamedThreads: true,
+    routes: [{ enabled: true, linkId: link.id, threadId: 'thread-ilander-123', forwardReplies: true }] } };
+  const orientation = agentLinkOrientation(link, settings);
+  assert.equal(orientation.codexMessaging.enabled, true);
+  assert.equal(orientation.codexMessaging.defaultThreadId, 'thread-ilander-123');
+  assert.equal(orientation.codexMessaging.canChooseOtherChats, false);
+  assert.match(orientation.codexMessaging.send.clientCommand, /send --connection/);
+  assert.doesNotMatch(JSON.stringify(orientation), /thread-private-muse|link-muse/);
+  assert.equal(agentLinkOrientation({ ...link, id: 'link-unknown' }, settings).codexMessaging.enabled, false);
+});
+
 test('orientation reflects only active grants and does not infer owner preferences', () => {
   const connection = { id: 'link-one', agentId: 'agent-one', status: 'connected', trustLevel: 'scoped', capabilities: ['messages', 'memory-read'] };
   connection.identity = { name: 'Synthetic QA agent' };
@@ -12,6 +25,9 @@ test('orientation reflects only active grants and does not infer owner preferenc
   assert.equal(scoped.connection.trustLevel, 'scoped');
   assert.equal(scoped.connection.name, 'Synthetic QA agent');
   assert.equal(scoped.connection.health.state, 'online');
+  assert.match(scoped.connectionLifecycle.resumeCommand, /status --connection link-one/);
+  assert.equal(scoped.connectionLifecycle.skill.path, '/agent-link/skill');
+  assert.match(scoped.observation.camera, /camera-snapshot/);
   assert.equal(scoped.policy.workMode, 'plan');
   assert.equal(scoped.ownerRelationship.integrationDepth, 'ask-owner');
   assert.deepEqual(scoped.available.map((item) => item.capability), ['messages', 'memory-read']);
@@ -129,7 +145,7 @@ test('voice discovery describes existing signed methods and filters missing devi
   assert.match(methods()[5].guidance, /set transcribeAudio only/);
   assert.equal(methods().some(item => item.path.startsWith('/api/')), false);
   link.capabilities = ['microphone-listen', 'speaker-output'];
-  assert.deepEqual(methods().map(item => item.path.split('/').at(-1)), ['voice-call', 'probe', 'end']);
+  assert.deepEqual(methods().map(item => item.path.split('/').at(-1)), ['initiate', 'media', 'voice-call', 'answer', 'probe', 'reply', 'end']);
   link.capabilities = ['microphone-listen']; assert.equal(methods().length, 0);
   link.capabilities = ['speaker-output']; assert.deepEqual(methods().map(item => item.path.split('/').at(-1)), ['end']);
   link.capabilities = []; assert.equal(methods().length, 0);

@@ -1,5 +1,5 @@
 (function installHexiGridPwaPolicy(scope) {
-  const CACHE_NAME = 'hexigrid-shell-v207';
+  const CACHE_NAME = 'hexigrid-shell-v221';
   const SHELL_ASSETS = Object.freeze([
     '/', '/agent-interface.html', '/offline-help.html', '/brand.js', '/styles.css', '/identity.css',
     '/brand-motion.css', '/interactions.css', '/boot-layer.css', '/boot-loader.css',

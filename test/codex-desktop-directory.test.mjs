@@ -10,7 +10,7 @@ function bridge(reply) {
   child.stdin = { write(raw) {
     const message = JSON.parse(raw.trim()); sent.push(message);
     if (message.id) queueMicrotask(() => child.stdout.emit('data', `${JSON.stringify({ id: message.id,
-      result: message.method === 'initialize' ? {} : { content: [{ type: 'text', text: JSON.stringify(reply) }] } })}\n`));
+      result: message.method === 'initialize' ? {} : { content: [{ type: 'text', text: JSON.stringify(message.params?.name === 'read_thread' ? { ...reply, turns: [{ id: 'actual-caller-turn' }] } : reply) }] } })}\n`));
   }, end() {} };
   child.kill = () => {};
   return { child, sent };
@@ -33,6 +33,7 @@ test('desktop directory lists saved projects and creates one chat in a selected 
   const create = bridge({ threadId: 'thread-newchat-123', hostId: 'local' });
   const result = await runCodexDesktopDirectory({ operation: 'create-chat', callerThreadId: 'thread-caller-123', projectId: 'project-123', prompt: 'Harmless first request', title: 'Test chat', serverPath: 'fake.mjs', spawnFn: () => create.child });
   assert.equal(result.threadId, 'thread-newchat-123');
+  assert.equal(create.sent.find(item => item.params?.name === 'create_thread').params._meta['openai/turnId'], 'actual-caller-turn');
   assert.deepEqual(create.sent.find((item) => item.params?.name === 'create_thread').params.arguments,
     { prompt: 'Harmless first request', target: { type: 'project', projectId: 'project-123', environment: { type: 'local' } }, title: 'Test chat' });
 });

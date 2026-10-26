@@ -42,3 +42,43 @@ test('real set-origin CLI refuses a credential-bearing URL before reading or cha
   assert.equal(result.status,1);assert.match(result.stderr,/without credentials/);
   assert.doesNotMatch(result.stdout+result.stderr,/SECRET-MARKER|ENOENT/);
 });
+test('real storage-status CLI reports unreadability as safe JSON without opening a companion',()=>{
+  const script=fileURLToPath(new URL('../integrations/hexigrid-link/scripts/companion_client.mjs',import.meta.url));
+  const result=spawnSync(process.execPath,[script,'storage-status','--connection','link-public-synthetic-unconfigured'],{
+    encoding:'utf8',windowsHide:true,env:{...process.env,HEXIGRID_LINK_SECRET_COMMAND:JSON.stringify([process.execPath,'-e','process.exit(1)'])}
+  });
+  assert.equal(result.status,0,result.stderr);const body=JSON.parse(result.stdout);
+  assert.equal(body.code,'CONNECTION_STORAGE_UNREADABLE');assert.equal(body.credentialReadable,false);
+  assert.equal(body.routingReadable,false);assert.equal(body.invitationUsed,false);
+});
+test('real storage-check identifies the failed protected operation without leaking helper output or consuming an invitation',()=>{
+  const script=fileURLToPath(new URL('../integrations/hexigrid-link/scripts/companion_client.mjs',import.meta.url));
+  const result=spawnSync(process.execPath,[script,'storage-check','--ephemeral'],{
+    encoding:'utf8',windowsHide:true,env:{...process.env,HEXIGRID_LINK_SECRET_COMMAND:JSON.stringify([process.execPath,'-e',"process.stderr.write('PRIVATE-PROVIDER-DIAGNOSTIC');process.exit(7)"])}
+  });
+  assert.equal(result.status,1);const body=JSON.parse(result.stdout);
+  assert.equal(body.code,'SECRET_STORE_OPERATION_FAILED');assert.equal(body.stage,'credential-write');
+  assert.equal(body.operation,'put');assert.equal(body.exitCode,7);assert.equal(body.invitationUsed,false);
+  assert.doesNotMatch(result.stdout+result.stderr,/PRIVATE-PROVIDER-DIAGNOSTIC/);
+});
+
+test('imported storage check retains the actual failed helper output privately without running the CLI',()=>{
+  const script=new URL('../integrations/hexigrid-link/scripts/companion_client.mjs',import.meta.url).href;
+  const code=`
+    import assert from 'node:assert/strict';
+    import {inspect} from 'node:util';
+    const {checkStorage}=await import(process.argv[1]);
+    try {await checkStorage({ephemeral:true});assert.fail('Expected helper failure');}
+    catch(error){
+      assert.equal(error.code,'SECRET_STORE_OPERATION_FAILED');
+      assert.equal(error.stage,'credential-write');assert.equal(error.exitCode,7);
+      assert.equal(error.providerDiagnostic.stderr,'PRIVATE-PROVIDER-DIAGNOSTIC');
+      assert.equal(error.providerDiagnostic.stdout,'PRIVATE-HELPER-OUTPUT');
+      assert.equal(Object.keys(error).includes('providerDiagnostic'),false);
+      assert.doesNotMatch(JSON.stringify(error)+inspect(error),/PRIVATE-PROVIDER-DIAGNOSTIC|PRIVATE-HELPER-OUTPUT/);
+    }`;
+  const result=spawnSync(process.execPath,['--input-type=module','-e',code,script],{
+    encoding:'utf8',windowsHide:true,env:{...process.env,HEXIGRID_LINK_SECRET_COMMAND:JSON.stringify([process.execPath,'-e',"process.stdout.write('PRIVATE-HELPER-OUTPUT');process.stderr.write('PRIVATE-PROVIDER-DIAGNOSTIC');process.exit(7)"])}
+  });
+  assert.equal(result.status,0,result.stderr);assert.equal(result.stdout,'');assert.equal(result.stderr,'');
+});

@@ -71,7 +71,10 @@ test('existing authorized owner speaker poll returns only its exact live call st
     await handleDesktopBridgeRequest({}, {}, ctx);assert.equal(result.status,200);assert.equal(result.body.voiceCall.phase,'thinking');
     state.settings.desktopBridge=startDesktopBridge(defaultDesktopBridge(),{linkId:'synthetic-b',viewGranted:true});
     startDesktopMedia({linkId:'synthetic-b',speakerGranted:true});await handleDesktopBridgeRequest({}, {}, ctx);
-    assert.equal(result.status,409); // Replaced media cannot replay another participant's conversation.
+    assert.equal(result.status,200); // Another desktop session must not replace the active call.
+    assert.equal(result.body.voiceCall.linkId, 'synthetic-a');
+    state.agentLinks[0].capabilities = [];
+    await handleDesktopBridgeRequest({}, {}, ctx);assert.notEqual(result.status,200);
     state.settings.desktopBridge.enabled=false;await handleDesktopBridgeRequest({}, {}, ctx);assert.notEqual(result.status,200);
   } finally {resetDesktopMediaForTests();resetVoiceCallForTests();}
 });
@@ -104,6 +107,9 @@ test('owner desktop-bridge poll returns only its active Link transcript when loc
     state.settings.desktopBridge = startDesktopBridge(defaultDesktopBridge(), { linkId: 'another-link', viewGranted: true });
     startDesktopMedia({ linkId: 'another-link', microphoneGranted: true, speakerGranted: true });
     connection.transcription.memoryOnly = false;
+    await handleDesktopBridgeRequest({}, {}, ctx);
+    assert.deepEqual(result.body.transcripts.map(line => line.text), ['Local-only transcript.']);
+    connection.status = 'revoked';
     await handleDesktopBridgeRequest({}, {}, ctx);
     assert.deepEqual(result.body.transcripts, []);
   } finally { resetDesktopMediaForTests(); resetVoiceCallForTests(); }

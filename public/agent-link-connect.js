@@ -3,6 +3,16 @@ import { AgentRelayClient } from './agent-link-relay-client.js';
 import { availableAgentLinkActions, prepareAgentLinkAction } from './agent-link-actions.js';
 
 const form = document.querySelector('#linkPairForm');
+const includedSkill = document.querySelector('#includedLinkSkill');
+if (includedSkill) {
+  void fetch('/agent-link/skill', { credentials: 'omit', cache: 'no-store' }).then(async response => {
+    if (!response.ok) throw new Error('The skill could not be loaded. Use the included download link to retry.');
+    const bundle = await response.json();
+    const skill = bundle.files?.find(file => file.path === bundle.entrypoint) || bundle.files?.find(file => file.path === 'SKILL.md');
+    if (!skill) throw new Error('The skill bundle is incomplete. Retry the download before pairing.');
+    includedSkill.textContent = skill.content;
+  }).catch(error => { includedSkill.textContent = error.message; });
+}
 const status = document.querySelector('#linkStatus');
 const control = document.querySelector('#desktopControl');
 const controlStatus = document.querySelector('#desktopControlStatus');
@@ -395,7 +405,7 @@ audioEnable.addEventListener('click', () => { audioEnable.disabled = true; audio
 
 async function readOwnerMedia(afterAudioSequence = lastAudioSequence) {
   if (!linkSession) throw new Error('This agent link is not connected.');
-  const result = await signedRequest('/agent-link/v1/desktop/media', { token: linkSession.token, method: 'POST', body: { afterAudioSequence } });
+  const result = await signedRequest('/agent-link/v1/desktop/media', { token: linkSession.token, method: 'POST', body: { afterAudioSequence, freshCamera: linkSession.capabilities.includes('camera-view') } });
   applyMedia(result);
   return result;
 }

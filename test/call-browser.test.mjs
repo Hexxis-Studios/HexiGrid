@@ -55,6 +55,23 @@ test('switching away and back invalidates a queued turn even when the call ID is
   bridge.publish(binding,{id:'call-one',mediaEpoch:2},event('After resume'));
   const fresh=bridge.claim(binding,JSON.parse(raw.split('data: ')[1]).id);assert.equal(fresh.mediaEpoch,2);
 });
+test('installed helpers can check a claimed wake without new client fields; unclaimed or completed turns are denied',async()=>{
+  let allowed=true;
+  const bridge=new CallBrowserBridge({authorize:(_b,_c,_e,kind)=>allowed && kind==='wake'});
+  const binding={...selection,id:'binding',enabled:true};const client=new EventEmitter();let raw='';
+  client.end=()=>{};client.write=s=>{raw=s;return true};bridge.subscribe(binding,client);
+  bridge.wake(binding,{id:'call-one',status:'offered',mediaEpoch:0});const id=JSON.parse(raw.split('data: ')[1]).id;
+  assert.equal(bridge.canDispatch(binding,'call-one',0),false);bridge.claim(binding,id);
+  let result;await handleCallBrowserRequest({headers:{authorization:'Bearer test'}},{},{
+    pathname:'/api/call-browser/v1/check',method:'POST',url:new URL('http://localhost/'),secret:'test',isHostRequest:()=>true,
+    safeEqual:(a,b)=>a===b,json:(_r,_s,body)=>{result=body},readBody:async()=>({bindingId:binding.id,callId:'call-one',mediaEpoch:0}),
+    state:()=>({settings:{callBrowserBindings:[binding]}}),bridge
+  });
+  assert.equal(result.active,true);assert.equal(bridge.canDispatch(binding,'call-one',1),false);
+  bridge.report(binding,id,'submitted');assert.equal(bridge.canDispatch(binding,'call-one',0),false);
+  bridge.wake(binding,{id:'call-two',status:'offered',mediaEpoch:0});bridge.claim(binding,JSON.parse(raw.split('data: ')[1]).id);
+  allowed=false;assert.equal(bridge.canDispatch(binding,'call-two',0),false);
+});
 test('actual dispatch authority intersects selection, Link, both media grants, device, policy and exact call',()=>{
   const fixture=()=>({state:{settings:{callBrowserBindings:[{id:'b',enabled:true,linkId:'one'}],desktopBridge:{enabled:true,ownerApproved:true,linkId:'one'}},
     agentLinks:[{id:'one',status:'connected',capabilities:['microphone-listen','speaker-output']}]},

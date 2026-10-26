@@ -15,7 +15,7 @@ function renderGuide() {
   $("#guideProgressTitle").textContent = percent === 100 ? "Setup complete" : complete < 2 ? "Getting started" : "Setup progress";
   $("#guideProgressText").textContent = percent === 100 ? "The basics are complete. Keep tuning profiles and permissions as your setup grows." : `${complete} of ${checks.length} basics complete. The next useful step is ${!checks[1] ? "checking your free models" : !checks[2] ? "shaping an agent personality" : "testing a connection"}.`;
   const query = ($('#guideSearch')?.value || '').trim().toLocaleLowerCase();
-  const everyday = ['start','navigation','live','phonebook','avatars','rooms','memory','skills','sharedMemory','computerAccess','workspace','tasks','vault','usage','backup','automaticBackups','desktop','agentInterface','codexChats'];
+  const everyday = ['start','basics','navigation','connections','existingAgent','ilands','muse','live','voices','speechSetup','phonebook','avatars','rooms','memory','skills','sharedMemory','computerAccess','workspace','tasks','vault','usage','backup','automaticBackups','desktop','agentInterface','codexChats'];
   const entries = Object.entries(guideTopics).sort(([a], [b]) => (everyday.includes(a) ? everyday.indexOf(a) : everyday.length) - (everyday.includes(b) ? everyday.indexOf(b) : everyday.length));
   const topics = entries.map(([key, topic], index) => ({ key, topic, index })).filter(({topic}) => !query || `${topic.title} ${topic.summary} ${topic.lead} ${topic.steps.flat().join(' ')}`.toLocaleLowerCase().includes(query));
   if (query) topics.sort((a, b) => Number(b.topic.title.toLocaleLowerCase().includes(query)) - Number(a.topic.title.toLocaleLowerCase().includes(query)));

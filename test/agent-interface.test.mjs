@@ -4,6 +4,35 @@ import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
 import { agentInterfaceManifest } from '../lib/agent-interface.mjs';
 
+test('Codex messaging editor loads separate settings when the selected agent changes', async () => {
+  const source = await readFile(new URL('../public/agent-interface.js', import.meta.url), 'utf8');
+  const start = source.indexOf('  function renderCodexRelaySettings(state)');
+  const end = source.indexOf("  document.querySelector('#codexRelayLink')?.addEventListener", start);
+  const fields = Object.fromEntries(['Link', 'Thread', 'Replies', 'NamedThreads', 'Enabled', 'Feedback'].map(name => [`#codexRelay${name}`, {}]));
+  fields['#codexApprovedChats'] = {};
+  const state = { settings: { codexRelay: { linkId: 'link-muse', threadId: 'thread-muse-123', enabled: true, allowNamedThreads: true,
+    routes: [{ linkId: 'link-ilander', threadId: 'thread-ilander-123', enabled: true, forwardReplies: false }] } } };
+  const render = runInNewContext(`let codexRelaySelection = ''; let codexConversationChoices = []; ${source.slice(start, end)}; (id) => { codexRelaySelection = id; renderCodexRelaySettings(state); }`, {
+    state, document: { querySelector: selector => fields[selector] }, escape: String, linkLabel: link => link.id,
+    connectedLinks: () => [{ id: 'link-muse', trustLevel: 'owner' }, { id: 'link-ilander', trustLevel: 'scoped' }, { id: 'link-new', trustLevel: 'scoped' }]
+  });
+  render('link-muse');
+  assert.equal(fields['#codexRelayThread'].value, 'thread-muse-123');
+  assert.equal(fields['#codexRelayNamedThreads'].checked, true);
+  render('link-ilander');
+  assert.equal(fields['#codexRelayThread'].value, 'thread-ilander-123');
+  assert.match(fields['#codexApprovedChats'].innerHTML, /disabled title="Default conversation" checked/);
+  assert.doesNotMatch(fields['#codexApprovedChats'].innerHTML, /thread-muse-123/);
+  assert.equal(fields['#codexRelayReplies'].checked, false);
+  assert.equal(fields['#codexRelayNamedThreads'].checked, false);
+  assert.equal(fields['#codexRelayNamedThreads'].disabled, true);
+  render('link-new');
+  assert.equal(fields['#codexRelayThread'].value, '');
+  assert.equal(fields['#codexRelayEnabled'].checked, false);
+  render('link-muse');
+  assert.equal(fields['#codexRelayThread'].value, 'thread-muse-123');
+});
+
 test('UIA catalog documents the existing signed desktop methods without owner-session substitution', () => {
   const { actions } = agentInterfaceManifest();
   assert.equal(actions.signedLinkUiaInspect.path, '/agent-link/v1/desktop/uia-inspect');

@@ -13,6 +13,7 @@ function desktop({ rejectSend = false } = {}) {
     const message = JSON.parse(raw); sent.push(message);
     if (!message.id) return;
     let payload = {};
+    if (message.params?.name === 'read_thread') payload = { turns: [{ id: 'actual-caller-turn', status: 'inProgress' }] };
     if (message.params?.name === 'wait_threads') {
       const finished = message.params.arguments.targets[0].afterCursor === 'old-cursor';
       payload = { polls: [{ cursor: finished ? 'new-cursor' : 'old-cursor', thread: { id: 'thread-target-123' },
@@ -38,6 +39,10 @@ test('acknowledged send provides a durable observation before watching reply', a
     assert.equal(fixture.sent.filter(item => item.params?.name === 'wait_threads').length, 1);
   } });
   assert.equal(result.content, 'new reply');
+  const send = fixture.sent.find(item => item.params?.name === 'send_message_to_thread');
+  assert.equal(send.params._meta['openai/turnId'], 'actual-caller-turn');
+  assert.match(send.params._meta['openai/toolCallId'], /^hexigrid-/);
+  assert.notEqual(send.params._meta['openai/toolCallId'], fixture.sent.find(item => item.params?.name === 'wait_threads').params._meta['openai/toolCallId']);
   assert.deepEqual(observation, { threadId: 'thread-target-123', sameThread: false, previousTurn: 'old-turn', previousTurnActive: false, cursor: 'old-cursor' });
 });
 

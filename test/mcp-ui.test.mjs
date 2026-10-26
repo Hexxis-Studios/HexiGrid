@@ -7,6 +7,7 @@ async function run(values, fail = false, action = null) {
   const source = await readFile(new URL('../public/integrations.js', import.meta.url), 'utf8');
   const calls = [], notifications = [], dialogs = []; let handler, refreshed = 0;
   const context = vm.createContext({
+    window: {},
     document: { addEventListener(type, listener) { handler = listener; } },
     state: { data: { mcpServers: [{ id: 'synthetic', name: 'QA', tools: [{ name: 'echo', inputSchema: { properties: { text: { type: 'string' }, payload: { type: 'object' } }, required: ['text'] } }] }] } },
     async modalRequest(options) { dialogs.push(options); return ['echo', 'Update protected MCP credentials'].includes(options.title) ? values : true; },

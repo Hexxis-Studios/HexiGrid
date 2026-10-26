@@ -25,6 +25,7 @@ import { createHexiKeysPluginBindings, hexikeysPluginRecipe } from './lib/hexike
 import { createHexiKeysBridgeClient, validateHexiKeysCaptureRequest } from './lib/hexikeys-bridge.mjs';
 import { importHexiKeysPairing, removeHexiKeysPairing, withHexiKeysPairing } from './lib/hexikeys-pairing.mjs';
 import { BRAND } from './lib/brand.mjs';
+import { instanceLockOwnerAlive } from './lib/instance-lock-owner.mjs';
 import { validateProvider, completeWithProvider, generateImageWithProvider, testProviderConnection, requiresProviderKey } from './lib/providers.mjs';
 import { commitProviderLimitPatch } from './lib/provider-limits.mjs';
 import { encryptBackup, decryptBackup } from './lib/backup.mjs';
@@ -80,17 +81,18 @@ import { createWindowsIncomingCallNotifier } from './lib/windows-incoming-call-n
 import { VoiceCallTranscriptBuffer } from './lib/voice-call-transcripts.mjs';
 import { recordCallChatTurn } from './lib/call-chat.mjs';
 import { CallBrowserBridge, callChatAuthorized } from './lib/call-browser.mjs';
+import { AndroidCallChat, loadAndroidCallProfiles, saveAndroidCallProfiles } from './lib/android-call-chat.mjs';
 import { handleCallBrowserRequest } from './lib/call-browser-routes.mjs';
 import { handleHarnessJobRequest, publicOwnerHarnessJobs } from './lib/harness-job-routes.mjs';
 import { handleLocalReleaseRequest } from './lib/local-release-routes.mjs';
 import { handleTaskRequest, publicTaskRun, recoverInterruptedTasks, backgroundTaskConnectionRequirement } from './lib/task-routes.mjs';
 import { handleLinkPreviewRequest } from './lib/link-preview-routes.mjs';
-import { codexRelayConfigured, codexRelayFailureReason, codexRelayPrompt, codexRelayReply, defaultCodexRelay, normalizeCodexRelay, publicCodexRelay, recoverCodexRelayDeliveries, resolveCodexThreadName } from './lib/codex-relay.mjs';
+import { codexRelayConfigured, codexRelayForLink, codexApprovedChats, updateCodexRelayRoute, codexRelayFailureReason, codexRelayPrompt, codexRelayReply, defaultCodexRelay, normalizeCodexRelay, publicCodexRelay, recoverCodexRelayDeliveries, resolveCodexThreadName } from './lib/codex-relay.mjs';
 import { runCodexDesktopTurn } from './lib/codex-desktop-relay.mjs';
 import { runCodexDesktopDirectory } from './lib/codex-desktop-directory.mjs';
 import { resolveCodexDesktopEnvironment } from './lib/codex-desktop-bridge-discovery.mjs';
 import { setOwnerAgentTrust } from './lib/owner-agent-access.mjs';
-import { defaultDesktopBridge, legacyDesktopMediaGrants, normalizeDesktopBridge, publicDesktopBridge, stopDesktopBridge } from './lib/desktop-bridge.mjs';
+import { defaultDesktopBridge, desktopBridgeSession, updateDesktopBridgeSession, legacyDesktopMediaGrants, normalizeDesktopBridge, publicDesktopBridge, stopDesktopBridge } from './lib/desktop-bridge.mjs';
 import { pauseDesktopAudio, publicDesktopMedia, startDesktopMedia, stopDesktopMedia, stopDesktopMediaKind } from './lib/desktop-media.mjs';
 import { clearBrowserDesktopFrame } from './lib/desktop-screen.mjs';
 import { endVoiceCall, publicVoiceCall, setVoiceCallAudioStopped, setVoiceCallNotificationChannel } from './lib/voice-call.mjs';
@@ -126,15 +128,21 @@ const modelPool = createModelPool({ address: process.env.HEXIGRID_MODEL_POOL_URL
 const voiceCallTranscripts = new VoiceCallTranscriptBuffer();
 let callBrowserLocalSecret = '';
 function callBrowserPolicy() { return connectorPolicy('external_write', 'medium', false, { external: true }); }
-function callBrowserAuthorized(selection, callId, mediaEpoch) {
+function callBrowserAuthorized(selection, callId, mediaEpoch, kind = 'speech') {
   return callChatAuthorized({ state, selection: { ...selection, callId, mediaEpoch }, call: publicVoiceCall(),
-    media: publicDesktopMedia(), policyDenied: Boolean(callBrowserPolicy()) });
+    media: publicDesktopMedia(), policyDenied: Boolean(callBrowserPolicy()), kind });
 }
 function callBrowserReceipt(binding, status, detail) {
   const link = state.agentLinks.find(x => x.id === binding.linkId);
   addReceipt({ agentId: link?.agentId, action: 'call:browser-chat', capability: 'external_write', risk: 'medium', status, detail, source: 'voice-call' });
 }
 const callBrowserBridge = new CallBrowserBridge({ authorize: callBrowserAuthorized, receipt: callBrowserReceipt });
+let androidCallChat;
+function callDeliveryStarted(call) {
+  voiceCallTranscripts.begin(call);
+  if (androidCallChat?.profile(call.linkId)) androidCallChat.wake(call);
+  else callBrowserBridge.wake(state.settings.callBrowserBindings?.find(x => x.enabled && x.linkId === call.linkId), call);
+}
 
 function saveCallChatReply({ connection, call, text }) {
   if (recordCallChatTurn(state, { connection, call, role: 'agent', text, turnKey: `${call.id}:reply:${call.replySequence}` })) roomEvents.publish();
@@ -146,7 +154,8 @@ function saveCallOwnerTranscript(options) {
   const connection = state.agentLinks.find(item => item.id === options.linkId && item.status === 'connected');
   if (recordCallChatTurn(state, { connection, call: options.call, role: 'user', text: options.event.text })) roomEvents.publish();
   const binding = state.settings.callBrowserBindings?.find(x => x.enabled && x.linkId === connection?.id);
-  callBrowserBridge.publish(binding, options.call, options.event);
+  if (androidCallChat?.profile(options.linkId)) androidCallChat.transcript(options);
+  else callBrowserBridge.publish(binding, options.call, options.event);
 }
 const AGENT_LINK_WORKSPACE_ROOT = path.resolve(process.env.HEXIGRID_AGENT_LINK_WORKSPACE_ROOT || ROOT);
 const PACKAGE_METADATA = JSON.parse(await fs.readFile(path.join(ROOT, 'package.json'), 'utf8'));
@@ -463,6 +472,16 @@ async function loadState() {
   state.taskRuns ||= [];
   state.runnerProfiles ||= [];
   normalizeAgentLinks(state);
+  state.receipts ||= [];
+  let revokedOrphanLinks = false;
+  // Profiles removed by older builds must not leave usable credentials behind.
+  for (const connection of state.agentLinks) {
+    if (connection.status !== 'connected' || state.agents.some(agent => agent.id === connection.agentId)) continue;
+    revokeAgentLink(connection);
+    revokedOrphanLinks = true;
+    state.settings.desktopBridge = stopDesktopBridge(state.settings.desktopBridge, 'agent-profile-removed', connection.id);
+    addReceipt({ agentId: connection.agentId, action: 'agent-link:revoke', capability: 'external_write', risk: 'high', status: 'completed', detail: 'Disconnected a retained Link whose local agent profile was already removed.', source: 'agent-link' });
+  }
   if (needsLegacyMediaGrantMigration) {
     const legacyLink = state.agentLinks.find((item) => item.id === legacyDesktopBridge?.linkId);
     const mediaGrants = legacyDesktopMediaGrants(legacyDesktopBridge, legacyLink);
@@ -474,20 +493,14 @@ async function loadState() {
   // Restore saved authorization for the same owner-approved Link after an
   // engine restart. startDesktopMedia restores grants only; capture, playback,
   // and buffered media remain empty and inactive until the owner starts them.
-  const savedMediaBridge = state.settings.desktopBridge;
-  const savedMediaLink = state.agentLinks.find((item) => item.id === savedMediaBridge?.linkId && item.status === 'connected');
-  if (savedMediaBridge?.enabled && savedMediaBridge.ownerApproved && savedMediaBridge.viewGranted && savedMediaLink?.capabilities?.includes('desktop-view')) {
-    const mediaGrants = {
-      camera: savedMediaBridge.mediaGrants.camera && savedMediaLink.capabilities.includes('camera-view'),
-      microphone: savedMediaBridge.mediaGrants.microphone && savedMediaLink.capabilities.includes('microphone-listen'),
-      speaker: savedMediaBridge.mediaGrants.speaker && savedMediaLink.capabilities.includes('speaker-output')
-    };
-    state.settings.desktopBridge.mediaGrants = mediaGrants;
-    startDesktopMedia({
-      linkId: savedMediaLink.id,
-      ...Object.fromEntries(Object.entries(mediaGrants).map(([kind, granted]) => [kind === 'camera' ? 'cameraGranted' : `${kind}Granted`, granted])),
-      ownerPausedMediaKinds: Object.entries(savedMediaBridge.mediaPausedByOwner).filter(([, paused]) => paused).map(([kind]) => kind)
-    });
+  const currentMediaBridge = state.settings.desktopBridge;
+  for (const savedMediaBridge of [...Object.values(currentMediaBridge?.sessions || {}), currentMediaBridge]) {
+    const savedMediaLink = state.agentLinks.find(item => item.id === savedMediaBridge?.linkId && item.status === 'connected');
+    if (!savedMediaBridge?.enabled || !savedMediaBridge.ownerApproved || !savedMediaLink) continue;
+    const grants = Object.fromEntries([['camera','camera-view'], ['microphone','microphone-listen'], ['speaker','speaker-output']].map(([kind, capability]) => [kind, savedMediaBridge.mediaGrants?.[kind] === true && savedMediaLink.capabilities.includes(capability)]));
+    state.settings.desktopBridge = updateDesktopBridgeSession(state.settings.desktopBridge, savedMediaLink.id, {mediaGrants: grants});
+    startDesktopMedia({linkId: savedMediaLink.id, cameraGranted: grants.camera, microphoneGranted: grants.microphone, speakerGranted: grants.speaker,
+      ownerPausedMediaKinds: Object.entries(savedMediaBridge.mediaPausedByOwner || {}).filter(([,paused]) => paused).map(([kind]) => kind)});
   }
   state.codexRelayPending = Array.isArray(state.codexRelayPending)
     ? state.codexRelayPending.filter((job) => job && typeof job.id === 'string' && typeof job.linkId === 'string' && typeof job.threadId === 'string' && typeof job.text === 'string').slice(0, 500)
@@ -583,7 +596,7 @@ async function loadState() {
   }
   if (state.settings.sync.provider === "firebase") state.settings.sync.provider = "google-drive";
   delete state.settings.sync['google' + 'ClientId'];
-  if (stateStore.loadedPlaintext || migratedSecrets || migratedBrand || migratedLineage || migratedLearningPreference || migratedLearningModel || migratedOwnerMemories || migratedLegacyMediaGrants || recoveredTaskState || recoveredHarnessState) {
+  if (stateStore.loadedPlaintext || migratedSecrets || migratedBrand || migratedLineage || migratedLearningPreference || migratedLearningModel || migratedOwnerMemories || migratedLegacyMediaGrants || revokedOrphanLinks || recoveredTaskState || recoveredHarnessState) {
     try { await saveState(); }
     catch (error) {
       if (error?.code !== 'VAULT_UNAVAILABLE') throw error;
@@ -608,6 +621,23 @@ async function loadCallBrowserLocalSecret() {
     callBrowserLocalSecret = crypto.randomBytes(32).toString('base64url');
     await credentialVault.set('call-browser-local-secret', callBrowserLocalSecret);
   }
+}
+
+async function loadAndroidCallChat() {
+  const file = path.join(DATA_DIR, 'android-call-profiles.json');
+  const profiles = await loadAndroidCallProfiles(file);
+  androidCallChat = new AndroidCallChat({ profiles, persist: values => saveAndroidCallProfiles(file, values),
+    authorize: (profile, callId, mediaEpoch, kind) => {
+      const link = state.agentLinks.find(x => x.id === profile.linkId && x.status === 'connected');
+      return Boolean(link && String(link.identity?.externalId) === profile.agentExternalId &&
+        callChatAuthorized({ state, bindings: profiles, selection: { id: profile.id, callId, mediaEpoch },
+          call: publicVoiceCall(), media: publicDesktopMedia(), policyDenied: Boolean(callBrowserPolicy()), kind }));
+    }, receipt: (profile, status, detail) => {
+      const link = state.agentLinks.find(x => x.id === profile.linkId);
+      addReceipt({ agentId: link?.agentId, action: 'call:android-chat', capability: 'external_write', risk: 'medium', status, detail, source: 'voice-call' });
+      void saveState().catch(() => {});
+    }
+  });
 }
 
 const roomEvents = createRoomEvents({authorized:req => { const status = authStatus(req); return !status.configured || status.authenticated; }, headers:securityHeaders});
@@ -758,7 +788,7 @@ function publicState() {
     agents: state.agents.map(publicAgent),
     rooms: state.rooms,
     activity: state.activity,
-    codexDeliveries: publicCodexDeliveries(state.codexRelayPending),
+    codexDeliveries: publicCodexDeliveries(state.codexRelayPending, state.settings.codexRelay),
     usage: state.usage,
     usageBudget: usageBudgetFeedback(state.settings.tokenBudget7d, state.usage),
     bridge: bridgeStatus(),
@@ -796,25 +826,45 @@ function publicState() {
 }
 
 function relayAgentLinkMessage(connection, message) {
-  const relay = normalizeCodexRelay(state.settings.codexRelay);
+  const relay = codexRelayForLink(state.settings.codexRelay, connection.id);
   if (!relay.enabled || !codexRelayConfigured(relay) || relay.linkId !== connection.id) return false;
   if (state.codexRelayPending.some((job) => job.id === message.id)) return true;
   if (state.codexRelayPending.length >= 500) throw new Error('The Codex relay inbox is full.');
   const threadName = typeof message.metadata?.codexThreadName === 'string' ? message.metadata.codexThreadName.trim().slice(0, 160) : '';
   const explicitThreadId = typeof message.metadata?.codexThreadId === 'string' ? message.metadata.codexThreadId.trim() : '';
-  state.codexRelayPending.push({ id: message.id, linkId: connection.id, tokenHash: connection.tokenHash, threadId: explicitThreadId || (threadName ? '' : relay.threadId), threadName, explicitThreadId: Boolean(explicitThreadId), identity: connection.identity, text: message.text, createdAt: now() });
+  const destination = codexApprovedChats(relay).find(chat => chat.threadId === (explicitThreadId || relay.threadId));
+  message.codexDelivery = { state: 'queued', threadId: explicitThreadId || (threadName ? '' : relay.threadId), title: threadName || destination?.title || relay.threadId };
+  const stored = connection.messages?.find(item => item.id === message.id);
+  if (stored) stored.codexDelivery = message.codexDelivery;
+  state.codexRelayPending.push({ threadTitle: message.codexDelivery.title, id: message.id, linkId: connection.id, tokenHash: connection.tokenHash, threadId: explicitThreadId || (threadName ? '' : relay.threadId), threadName, explicitThreadId: Boolean(explicitThreadId), identity: connection.identity, text: message.text, createdAt: now() });
   addReceipt({ agentId: connection.agentId, action: 'codex-relay:queued', capability: 'conversation', risk: 'medium', status: 'pending', detail: 'A delegated Link message was saved for the selected Codex conversation.', source: 'codex-relay' });
   return true;
 }
 
 function codexRelayNamedTargetAllowed(connection) {
-  const relay = normalizeCodexRelay(state.settings.codexRelay);
+  const relay = codexRelayForLink(state.settings.codexRelay, connection.id);
   return relay.enabled && relay.linkId === connection.id && relay.allowNamedThreads && connection.trustLevel === 'owner';
 }
 
+function codexRelayTargetAllowed(connection, metadata = {}) {
+  const relay = codexRelayForLink(state.settings.codexRelay, connection.id);
+  if (!relay.enabled || !connection.capabilities.includes('messages')) return false;
+  return codexRelayNamedTargetAllowed(connection) || codexApprovedChats(relay).some(chat =>
+    metadata.codexThreadId ? chat.threadId === metadata.codexThreadId : metadata.codexThreadName ? chat.title === metadata.codexThreadName : chat.threadId === relay.threadId);
+}
+
 async function codexDirectoryRequest(connection, request) {
+  const selected = codexRelayForLink(state.settings.codexRelay, connection.id);
+  if (request.operation === 'chats' && selected.enabled && connection.capabilities.includes('messages') && !codexRelayNamedTargetAllowed(connection)) {
+    const chats = await Promise.all(codexApprovedChats(selected).map(async chat => {
+      if (chat.title !== chat.threadId) return { id: chat.threadId, title: chat.title };
+      const current = await runCodexDesktopDirectory({ operation: 'chat', threadId: chat.threadId, callerThreadId: selected.threadId, env: await codexDesktopEnvironment(selected.threadId) });
+      return { id: chat.threadId, title: current.title };
+    }));
+    return { chats, count: chats.length, scope: 'approved-conversations' };
+  }
   if (!codexRelayNamedTargetAllowed(connection)) throw new Error('This Link cannot access the Codex directory.');
-  const relay = normalizeCodexRelay(state.settings.codexRelay);
+  const relay = codexRelayForLink(state.settings.codexRelay, connection.id);
   return runCodexDesktopDirectory({ ...request, callerThreadId: relay.threadId, env: await codexDesktopEnvironment(relay.threadId) });
 }
 
@@ -838,26 +888,30 @@ function retryCodexRelayWhenDesktopReturns() {
 }
 
 function codexRelayJobAuthorized(job, relay, connection) {
-  return Boolean(connection && (!job.tokenHash || job.tokenHash === connection.tokenHash) && relay.enabled && relay.linkId === job.linkId &&
-    (job.threadName || job.explicitThreadId ? relay.allowNamedThreads && connection.trustLevel === 'owner' : relay.threadId === job.threadId));
+  return Boolean(connection?.capabilities.includes('messages') && (!job.tokenHash || job.tokenHash === connection.tokenHash) && relay.enabled && relay.linkId === job.linkId &&
+    (job.threadName ? relay.allowNamedThreads && connection.trustLevel === 'owner' : job.explicitThreadId ?
+      (relay.allowNamedThreads && connection.trustLevel === 'owner') || codexApprovedChats(relay).some(chat => chat.threadId === job.threadId) : relay.threadId === job.threadId));
 }
 
 function codexRelayQueueAvailable(connection) {
-  const relay = normalizeCodexRelay(state.settings.codexRelay);
+  const relay = codexRelayForLink(state.settings.codexRelay, connection.id);
   return !relay.enabled || relay.linkId !== connection.id || state.codexRelayPending.length < 500;
 }
 
 function startCodexRelayDrain() {
+  const activeMessageForJob = job => state.agentLinks.find(link => link.id === job.linkId)?.messages?.find(message => message.id === job.id);
   if (codexRelayRunning || !state.codexRelayPending.length || shuttingDown) return;
   codexRelayRunning = true;
   void (async () => {
     while (state.codexRelayPending.length && !shuttingDown && codexRelayAttempts.size < 8) {
       const job = state.codexRelayPending.find(item => !codexRelayAttempts.has(item.id) && item.delivery !== 'delivery-uncertain');
       if (!job) break;
-      const relay = normalizeCodexRelay(state.settings.codexRelay);
+      const relay = codexRelayForLink(state.settings.codexRelay, job.linkId);
       const connection = state.agentLinks.find((item) => item.id === job.linkId && item.status === 'connected');
       const tokenHash = connection?.tokenHash;
       if (!codexRelayJobAuthorized(job, relay, connection)) {
+        const message = activeMessageForJob(job);
+        if (message) message.codexDelivery = { ...message.codexDelivery, state: 'cancelled' };
         state.codexRelayPending = state.codexRelayPending.filter(item => item.id !== job.id);
         addReceipt({ agentId: connection?.agentId, action: 'codex-relay:turn', capability: 'conversation', risk: 'medium', status: 'cancelled', detail: 'A pending Codex relay message was cancelled because its Link or route is no longer active.', source: 'codex-relay' });
         await saveState();
@@ -895,7 +949,7 @@ function startCodexRelayDrain() {
             resumeObservation: job.observation,
             assertAuthorized() {
               const active = state.agentLinks.find(item => item.id === job.linkId && item.status === 'connected');
-              if (!codexRelayJobAuthorized(job, normalizeCodexRelay(state.settings.codexRelay), active) ||
+              if (!codexRelayJobAuthorized(job, codexRelayForLink(state.settings.codexRelay, job.linkId), active) ||
                 active?.tokenHash !== tokenHash || connectorPolicy('run_tools', 'medium', true, { external: true })) {
                 throw new Error('The Codex relay authority changed before submission.');
               }
@@ -903,6 +957,8 @@ function startCodexRelayDrain() {
             async onSubmitted(observation) {
               job.observation = observation;
               job.delivery = 'awaiting-reply';
+              const message = activeMessageForJob(job);
+              if (message) message.codexDelivery = { ...message.codexDelivery, state: 'delivered', threadId: job.threadId };
               await saveState();
               acknowledgeSubmission(true);
             }
@@ -915,6 +971,8 @@ function startCodexRelayDrain() {
         if (failure && !shuttingDown) {
           if (failure.codexDeliveryStatus === 'uncertain') {
             job.delivery = 'delivery-uncertain';
+            const message = activeMessageForJob(job);
+            if (message) message.codexDelivery = { ...message.codexDelivery, state: 'delivery-uncertain' };
             addReceipt({ agentId: connection.agentId, action: 'codex-relay:delivery', capability: 'conversation', risk: 'medium', status: 'failed',
               detail: 'The desktop submission acknowledgement was lost. The saved message will not be resent automatically; inspect the target chat before retrying.', source: 'codex-relay' });
             await saveState();
@@ -931,7 +989,7 @@ function startCodexRelayDrain() {
         }
         if (shuttingDown) return;
         if (result?.threadId) job.threadId = result.threadId;
-        const currentRelay = normalizeCodexRelay(state.settings.codexRelay);
+        const currentRelay = codexRelayForLink(state.settings.codexRelay, job.linkId);
         const currentConnection = state.agentLinks.find((item) => item.id === job.linkId && item.status === 'connected');
         const stillAuthorized = codexRelayJobAuthorized(job, currentRelay, currentConnection) && currentConnection?.tokenHash === tokenHash &&
           !connectorPolicy('run_tools', 'medium', true, { external: true });
@@ -948,6 +1006,8 @@ function startCodexRelayDrain() {
         }
         addReceipt({ agentId: currentConnection?.agentId, action: 'codex-relay:turn', capability: 'conversation', risk: 'medium', status: !stillAuthorized ? 'cancelled' : failure || (currentRelay.forwardReplies && !replyQueued) ? 'failed' : 'completed', detail: !stillAuthorized ? 'The Link or route changed before the Codex response could be forwarded.' : failure ? `The configured local Codex relay could not complete a turn. ${codexRelayFailureReason(failure)}` : currentRelay.forwardReplies && !replyQueued ? 'The Codex turn completed, but its Link reply could not be queued.' : 'A delegated HexiGrid Link message was delivered to the configured Codex conversation.', source: 'codex-relay' });
         if (!failure && replyQueued) addActivity('agent-link', `${currentConnection.identity.name} received a Codex relay response.`);
+        const message = activeMessageForJob(job);
+        if (message) message.codexDelivery = { ...message.codexDelivery, state: !stillAuthorized ? 'cancelled' : failure ? 'failed' : replyQueued ? 'answered' : 'completed', threadId: job.threadId };
         state.codexRelayPending = state.codexRelayPending.filter(item => item.id !== job.id);
         await saveState();
       })().catch(() => { retryCodexRelayWhenDesktopReturns(); }).finally(() => {
@@ -963,8 +1023,10 @@ function startCodexRelayDrain() {
   });
 }
 
-function abortCodexRelayAttempts() {
-  for (const attempt of codexRelayAttempts.values()) attempt.abort();
+function abortCodexRelayAttempts(linkId = '') {
+  for (const [id, attempt] of codexRelayAttempts) {
+    if (!linkId || state.codexRelayPending.some(job => job.id === id && job.linkId === linkId)) attempt.abort();
+  }
 }
 
 const codexDeliveryReviewLocks = new Set();
@@ -987,7 +1049,7 @@ async function handleCodexDoorLocalRequest(req, res, pathname, method) {
     if (['submitting', 'awaiting-reply', 'delivery-uncertain'].includes(job.delivery)) {
       json(res, 409, { error: 'This message has desktop delivery intent already. Inspect its delivery standing before attempting a local claim.' }); return true;
     }
-    const relay = normalizeCodexRelay(state.settings.codexRelay);
+    const relay = codexRelayForLink(state.settings.codexRelay, job.linkId);
     const connection = state.agentLinks.find((item) => item.id === job.linkId && item.status === 'connected');
     if (!codexRelayJobAuthorized(job, relay, connection) || job.threadName || job.explicitThreadId) { startCodexRelayDrain(); json(res, 409, { error: 'The pending Link or route is not available for a local task claim.' }); return true; }
     if (job.delivery === 'codex-task' && Date.parse(job.claimExpiresAt || '') > Date.now()) { json(res, 409, { error: 'The pending message is already claimed by a Codex task.' }); return true; }
@@ -1005,7 +1067,7 @@ async function handleCodexDoorLocalRequest(req, res, pathname, method) {
     const body = await readBody(req, 128 * 1024);
     const job = state.codexRelayPending[0];
     if (!job || job.delivery !== 'codex-task' || job.id !== body.id || !safeEqual(job.claimId, body.claimId) || Date.parse(job.claimExpiresAt || '') <= Date.now()) { json(res, 409, { error: 'The claimed Codex Door message is no longer available.' }); return true; }
-    const relay = normalizeCodexRelay(state.settings.codexRelay);
+    const relay = codexRelayForLink(state.settings.codexRelay, job.linkId);
     const connection = state.agentLinks.find((item) => item.id === job.linkId && item.status === 'connected');
     if (!codexRelayJobAuthorized(job, relay, connection) || !relay.forwardReplies || job.threadName || job.explicitThreadId) { json(res, 409, { error: 'The selected Link or reply route is no longer active.' }); return true; }
     const answer = String(body.text || '').trim();
@@ -2311,9 +2373,9 @@ async function modelPoolRequest(req, res, action, body = {}, connection = null) 
 function disconnectAgentLink(connection, { purge = false } = {}) {
   const stoppedJobs = stopHarnessJobsForLink(connection.id);
   endVoiceCall(connection.id, 'link-revoked');
-  if (state.settings.desktopBridge?.linkId === connection.id) {
-    state.settings.desktopBridge = stopDesktopBridge(state.settings.desktopBridge, 'link-revoked');
-    stopDesktopMedia('link-revoked'); avatarPresence.hide('link-revoked'); onRequestPresence.deactivate('link-revoked');
+  if (desktopBridgeSession(state.settings.desktopBridge, connection.id).enabled) {
+    state.settings.desktopBridge = stopDesktopBridge(state.settings.desktopBridge, 'link-revoked', connection.id);
+    stopDesktopMedia('link-revoked', connection.id); avatarPresence.hide('link-revoked'); onRequestPresence.deactivate('link-revoked');
   }
   const record = revokeAgentLink(connection);
   if (purge) state.agentLinks = state.agentLinks.filter(item => item.id !== connection.id);
@@ -4213,7 +4275,7 @@ async function route(req, res) {
   const requestHtml = (response, file) => html(response, file, { frameOrigin });
 
   if (method === 'GET' && pathname === '/hexispace-approve.html') return html(res, 'hexispace-approve.html');
-  if (await handleAgentLinkRequest(req, res, { state, pathname, method, readBody, json, html, serveStaticAsset, publicDir: PUBLIC_DIR, securityHeaders, skillRoot: path.join(ROOT, 'integrations', 'hexigrid-link'), projectRoot: ROOT, agentLinkWorkspaceRoot: AGENT_LINK_WORKSPACE_ROOT, findAgent, publicAgent, publicAgentLink, addReceipt, addActivity, saveState, onRoomChanged:() => { roomEvents.publish(); linkedRoomWaiters.changed(); }, localProfileReply, startHarnessJob, findHarnessJob, publicHarnessJob, cancelHarnessJob, stopHarnessJobsForLink, connectorPolicy, onVoiceReply: saveCallChatReply, notifyIncomingVoiceCall: voiceCall => { voiceCallTranscripts.begin(voiceCall); setVoiceCallNotificationChannel(voiceCall.id, incomingCallNotifier.notify(voiceCall) ? "windows" : "browser"); }, modelPoolRequest, relayAgentLinkMessage, codexRelayQueueAvailable, codexRelayNamedTargetAllowed, codexDirectoryRequest, startCodexRelayDrain, portraitAvatarRequest, datedMemoryStore, localMemoryRag, commitAgentMemoryCorrection, getRetrievalMetrics, credentialVault, createMemoryMcpHandler, assertAgentActivity, avatarPresence, onRequestPresence, clearBrowserDesktopFrame, agentLinkPairingLimiter, agentLinkPairingKey: loginKey, cleanString, slug, id, now, createLinkedMcp: createMcpRequest, mcpCatalog: () => state.mcpServers.map(publicMcpRecord), discoverLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return discoverMcpRequest(req, res, mcp, body, connection); }, enableLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return setMcpEnabled(req, res, mcp, body, connection); }, setLinkedMcpCredentials: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return setMcpCredentials(req, res, mcp, body, connection); }, removeLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return removeMcpRequest(req, res, mcp, body, connection); }, runLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return runMcpRequest(req, res, mcp, body, connection); }, hexikeysRequest, hexikeysLinkedPluginRequest, pluginCatalog: () => state.plugins.map(safePluginRecord).filter(Boolean), publisherCatalog: () => state.pluginPublishers.map(item => ({ ...item })), revokeLinkedPublisher: revokePluginPublisher, installLinkedPlugin: installPluginRequest, removeLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return removePluginRequest(req, res, plugin, body, connection); }, setLinkedPluginCredentials: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return setPluginCredentials(req, res, plugin, body, connection); }, enableLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return setPluginEnabled(req, res, plugin, body, connection); }, runLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return runPluginRequest(req, res, plugin, body, connection); }, taskApprovalSummary, taskPolicy, taskConnectionReadiness, runTaskOnce, activeTaskRuns, taskApprovalTtlMs: TASK_APPROVAL_TTL_MS })) return;
+  if (await handleAgentLinkRequest(req, res, { state, pathname, method, readBody, json, html, serveStaticAsset, publicDir: PUBLIC_DIR, securityHeaders, skillRoot: path.join(ROOT, 'integrations', 'hexigrid-link'), projectRoot: ROOT, agentLinkWorkspaceRoot: AGENT_LINK_WORKSPACE_ROOT, findAgent, publicAgent, publicAgentLink, addReceipt, addActivity, saveState, onRoomChanged:() => { roomEvents.publish(); linkedRoomWaiters.changed(); }, localProfileReply, startHarnessJob, findHarnessJob, publicHarnessJob, cancelHarnessJob, stopHarnessJobsForLink, connectorPolicy, onVoiceReply: saveCallChatReply, notifyIncomingVoiceCall: voiceCall => { voiceCallTranscripts.begin(voiceCall); setVoiceCallNotificationChannel(voiceCall.id, incomingCallNotifier.notify(voiceCall) ? "windows" : "browser"); }, modelPoolRequest, relayAgentLinkMessage, codexRelayQueueAvailable, codexRelayNamedTargetAllowed, codexRelayTargetAllowed, codexDirectoryRequest, startCodexRelayDrain, portraitAvatarRequest, datedMemoryStore, localMemoryRag, commitAgentMemoryCorrection, getRetrievalMetrics, credentialVault, createMemoryMcpHandler, assertAgentActivity, avatarPresence, onRequestPresence, clearBrowserDesktopFrame, agentLinkPairingLimiter, agentLinkPairingKey: loginKey, cleanString, slug, id, now, createLinkedMcp: createMcpRequest, mcpCatalog: () => state.mcpServers.map(publicMcpRecord), discoverLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return discoverMcpRequest(req, res, mcp, body, connection); }, enableLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return setMcpEnabled(req, res, mcp, body, connection); }, setLinkedMcpCredentials: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return setMcpCredentials(req, res, mcp, body, connection); }, removeLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return removeMcpRequest(req, res, mcp, body, connection); }, runLinkedMcp: (req, res, serverId, body, connection) => { const mcp = state.mcpServers.find(item => item.id === serverId); if (!mcp) return json(res, 404, { error: 'MCP server not found.' }); return runMcpRequest(req, res, mcp, body, connection); }, hexikeysRequest, hexikeysLinkedPluginRequest, pluginCatalog: () => state.plugins.map(safePluginRecord).filter(Boolean), publisherCatalog: () => state.pluginPublishers.map(item => ({ ...item })), revokeLinkedPublisher: revokePluginPublisher, installLinkedPlugin: installPluginRequest, removeLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return removePluginRequest(req, res, plugin, body, connection); }, setLinkedPluginCredentials: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return setPluginCredentials(req, res, plugin, body, connection); }, enableLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return setPluginEnabled(req, res, plugin, body, connection); }, runLinkedPlugin: (req, res, pluginId, body, connection) => { const plugin = state.plugins.find(item => item.id === pluginId); if (!plugin) return json(res, 404, { error: 'Plugin not found.' }); return runPluginRequest(req, res, plugin, body, connection); }, taskApprovalSummary, taskPolicy, taskConnectionReadiness, runTaskOnce, activeTaskRuns, taskApprovalTtlMs: TASK_APPROVAL_TTL_MS })) return;
   if (pathname.startsWith('/api/hexispace/v1/')) return handleHexiSpaceRequest(req, res, { state, url, pathname, method, isTunnelRequest, networkGate, isHostRequest, readBody, json, authStatus, saveState, addReceipt, addActivity, findAgent, publicAgent, localProfileReply, withHexiSpaceConversationLock, credentialVault, mediaDir: MEDIA_DIR, appVersion: APP_VERSION, serverScheme: SERVER_SCHEME, activeTaskRuns, stopAllRunnerJobs, stopAllManagedRunners, stopHarnessJobs, connectorPolicy, cleanString, id, now });
 
   if (networkGate(req, res, url)) return;
@@ -4350,7 +4412,7 @@ async function route(req, res) {
 
   if (pathname === '/api/hologram-presence' || pathname.startsWith('/api/hologram-presence/')) return json(res, 410, { error: 'The native hologram was retired. Use Live avatar in Computer access.', replacement: '/api/agents/:id/avatar-presence' });
   if (await handleDesktopBridgeRequest(req, res, { state, pathname, method, readBody, json, connectorPolicy, addReceipt, addActivity, saveState, findAgent, now, localTranscriber, avatarPresence, onRequestPresence,
-    getVoiceCallTranscripts: options => voiceCallTranscripts.read(options), onVoiceTranscript: saveCallOwnerTranscript, onVoiceCallStarted: voiceCall => voiceCallTranscripts.begin(voiceCall) })) return;
+    getVoiceCallTranscripts: options => voiceCallTranscripts.read(options), onVoiceTranscript: saveCallOwnerTranscript, onVoiceCallStarted: callDeliveryStarted })) return;
 
   if (await handleHarnessJobRequest(req, res, { pathname, method, readBody, json, connectorPolicy, findAgent, startHarnessJob, findHarnessJob, listHarnessJobs, publicHarnessJob, cancelHarnessJob, addReceipt, saveState, cleanString })) return;
   if (pathname === '/api/local-releases' || pathname.startsWith('/api/local-releases/')) {
@@ -4395,16 +4457,19 @@ async function route(req, res) {
     const denied = connectorPolicy('external_write', 'critical', body.approved === true);
     if (denied) return json(res, denied.denied ? 403 : 409, denied);
     let change;
-    try { change = updateAgentLinkCapabilities(connection, body.capabilities); }
+    try { change = updateAgentLinkCapabilities(connection, body.capabilities, { selfManagementEnabled: body.selfManagementEnabled, activate: body.activate }); }
     catch (error) { return json(res, error.status || 400, { error: error.message, ...(error.code ? { code: error.code } : {}) }); }
+    if (change.removed.includes('desktop-view')) state.settings.desktopBridge = updateDesktopBridgeSession(state.settings.desktopBridge, connection.id, {viewGranted: false, controlGranted: false, textGranted: false, agentControlActive: false});
+    else if (change.removed.includes('desktop-control')) state.settings.desktopBridge = updateDesktopBridgeSession(state.settings.desktopBridge, connection.id, {controlGranted: false, textGranted: false, agentControlActive: false});
+    else if (change.removed.includes('desktop-type')) state.settings.desktopBridge = updateDesktopBridgeSession(state.settings.desktopBridge, connection.id, {textGranted: false});
     if (change.removed.includes('harness-jobs')) {
       stopHarnessJobsForLink(connection.id, 'The owner revoked harness-jobs access while a linked harness job was running.');
     }
-    if (state.settings.desktopBridge?.linkId === connection.id) {
+    if (desktopBridgeSession(state.settings.desktopBridge, connection.id).enabled) {
       if (change.removed.includes('desktop-view')) clearBrowserDesktopFrame();
       const mediaKinds = { 'camera-view': 'camera', 'microphone-listen': 'microphone', 'speaker-output': 'speaker' };
       for (const capability of change.removed) {
-        if (mediaKinds[capability]) stopDesktopMediaKind(mediaKinds[capability], 'capability-revoked');
+        if (mediaKinds[capability]) stopDesktopMediaKind(mediaKinds[capability], 'capability-revoked', connection.id);
       }
       if (change.removed.some((capability) => capability === 'microphone-listen' || capability === 'speaker-output')) {
         endVoiceCall(connection.id, 'capability-revoked');
@@ -4413,9 +4478,11 @@ async function route(req, res) {
       }
     }
     const grantText = change.added.length ? `Granted ${change.added.join(', ')}.` : 'No new capabilities were granted.';
-    const revokeText = change.removed.length ? ` Revoked ${change.removed.join(', ')}.` : '';
-    if (connection.status === 'connected') queueAgentLinkEvent(connection, { type: 'capabilities', text: `The owner updated this Link's capabilities. ${grantText}${revokeText}` });
-    addReceipt({ agentId: connection.agentId, action: 'agent-link:capabilities', capability: 'external_write', risk: 'critical', status: 'completed', detail: `${connection.identity.name} (${connection.id})'s exact HexiGrid Link capabilities were updated. ${grantText}${revokeText}`, source: 'agent-link' });
+    const revokedGrants = [...new Set([...change.removed, ...(change.grantsRemoved || [])])];
+    const revokeText = revokedGrants.length ? ` Revoked ${revokedGrants.join(', ')}.` : '';
+    const managementText = ` Permission self-management is ${change.selfManagementEnabled ? 'on' : 'off'}.`;
+    if (connection.status === 'connected') queueAgentLinkEvent(connection, { type: 'capabilities', text: `The owner updated this Link's capabilities. ${grantText}${revokeText}${managementText}` });
+    addReceipt({ agentId: connection.agentId, action: 'agent-link:capabilities', capability: 'external_write', risk: 'critical', status: 'completed', detail: `${connection.identity.name} (${connection.id})'s exact HexiGrid Link capabilities were updated. ${grantText}${revokeText}${managementText}`, source: 'agent-link' });
     addActivity('security', `Updated capabilities for ${connection.identity.name}'s exact HexiGrid Link.`);
     await saveState();
     return json(res, 200, { connection: publicAgentLink(connection), change });
@@ -4457,7 +4524,7 @@ async function route(req, res) {
       const wantsDesktop = Array.isArray(body.capabilities) && body.capabilities.some((item) => ['desktop-view', 'desktop-control', 'camera-view', 'microphone-listen'].includes(item));
       if (wantsDesktop && !relay.running && !tailnet.running) return json(res, 409, { error: relay.error || 'Start the public agent relay before creating a remote computer invitation.', relay, tailnet });
       const baseUrl = wantsDesktop && relay.running ? relay.url : wantsDesktop ? tailnet.url : tunnel.running ? tunnel.url : tailnet.running ? tailnet.url : `${SERVER_SCHEME}://${req.headers.host}`;
-      const result = createAgentLinkInvite(state, { agentId: target?.id || '', baseUrl, requestedCapabilities: body.capabilities });
+      const result = createAgentLinkInvite(state, { agentId: target?.id || '', baseUrl, requestedCapabilities: body.capabilities, selfManagementEnabled: body.selfManagementEnabled });
       if (relay.running) {
         const original = new URL(result.invitationUrl);
         const browserInvitationUrl = `${publicAgentRelay.registerInvite(result.invite, { transport: 'https' })}${original.hash}`;
@@ -4710,7 +4777,7 @@ async function route(req, res) {
     const emergencyLink = state.agentLinks.find((item) => item.id === state.settings.desktopBridge?.linkId && item.status === 'connected');
     if (emergencyLink) queueAgentLinkEvent(emergencyLink, { type: 'voice.call.ended', text: 'The owner emergency stop ended all live media immediately.', metadata: { reason: 'emergency-stop' } });
     endVoiceCall(state.settings.desktopBridge?.linkId, 'emergency-stop');
-    state.settings.desktopBridge = stopDesktopBridge(state.settings.desktopBridge, 'emergency-stop');
+    state.settings.desktopBridge = { ...stopDesktopBridge(state.settings.desktopBridge, 'emergency-stop'), recoveryBlocked: true };
     stopDesktopMedia('emergency-stop');
     avatarPresence.hide('emergency-stop');
     onRequestPresence.deactivate('emergency-stop');
@@ -4906,6 +4973,15 @@ async function route(req, res) {
       await saveState();
       return json(res, 200, { schedule: state.settings.backupSchedule, defaultDirectory: DEFAULT_BACKUP_DIR });
     } catch (error) { return json(res, error?.status || 400, { error: error.message }); }
+  }
+  if (pathname === '/api/codex-chats' && method === 'GET') {
+    if (!isHostRequest(req) || !authenticatedMemoryOwner(req)) return json(res, 403, { error: 'Only the signed-in owner can choose Codex conversations.' });
+    const denied = connectorPolicy('read_local', 'medium', false);
+    if (denied) return json(res, denied.denied ? 403 : 409, denied);
+    const route = codexRelayForLink(state.settings.codexRelay, url.searchParams.get('linkId'));
+    if (!route.threadId) return json(res, 409, { error: 'Set the first Codex conversation ID to load the conversation list.' });
+    try { return json(res, 200, await runCodexDesktopDirectory({ operation: 'chats', callerThreadId: route.threadId, env: await codexDesktopEnvironment(route.threadId) })); }
+    catch { return json(res, 503, { error: 'Open Codex and try loading conversations again.' }); }
   }
   if (await handleCodexDeliveryReview(req, res, { pathname, method, state, json, readBody,
     isOwner: () => isHostRequest(req) && Boolean(authenticatedMemoryOwner(req)), policy: connectorPolicy, saveState, addReceipt,
@@ -7168,9 +7244,13 @@ async function route(req, res) {
     const priorMode = state.settings.workMode;
     let requestedCodexRelay = null;
     if (body.codexRelay && typeof body.codexRelay === 'object' && !Array.isArray(body.codexRelay)) {
-      requestedCodexRelay = normalizeCodexRelay({ ...state.settings.codexRelay, ...body.codexRelay });
+      if (Object.hasOwn(body.codexRelay, 'routes')) return json(res, 400, { error: 'Save Codex messaging for one selected agent at a time.' });
+      if (body.codexRelay.approvedChats !== undefined && (!Array.isArray(body.codexRelay.approvedChats) || body.codexRelay.approvedChats.some(chat => !chat || typeof chat.threadId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9-]{7,119}$/.test(chat.threadId) || typeof chat.title !== 'string' || !chat.title.trim() || chat.title.length > 160))) return json(res, 400, { error: 'Choose valid Codex conversations with titles.' });
+      const routeLinkId = body.codexRelay.linkId ?? state.settings.codexRelay.linkId;
+      requestedCodexRelay = normalizeCodexRelay({ ...codexRelayForLink(state.settings.codexRelay, routeLinkId), ...body.codexRelay, routes: [] });
       if (requestedCodexRelay.enabled && !codexRelayConfigured(requestedCodexRelay)) return json(res, 400, { error: 'Enable the Codex relay only after both a Codex thread ID and a paired HexiGrid Link are configured.' });
       if (requestedCodexRelay.enabled && !state.agentLinks.some((connection) => connection.id === requestedCodexRelay.linkId && connection.status === 'connected')) return json(res, 409, { error: 'The configured Codex relay link is not connected.' });
+      if (requestedCodexRelay.enabled && !state.agentLinks.some(connection => connection.id === requestedCodexRelay.linkId && connection.capabilities.includes('messages'))) return json(res, 403, { error: 'Allow messages for this agent before enabling Codex messaging.' });
       if (requestedCodexRelay.enabled && requestedCodexRelay.allowNamedThreads && !state.agentLinks.some((connection) => connection.id === requestedCodexRelay.linkId && connection.status === 'connected' && connection.trustLevel === 'owner')) return json(res, 403, { error: 'Exact-name Codex routing requires owner-agent trust on the selected Link.' });
     }
     if (['free-only', 'all-models'].includes(body.modelPolicy)) state.settings.modelPolicy = body.modelPolicy;
@@ -7207,7 +7287,7 @@ async function route(req, res) {
     if (typeof body.setupAcknowledged === "boolean") state.settings.setupAcknowledged = body.setupAcknowledged;
     if (hiddenCallContacts) state.settings.hiddenCallContacts = hiddenCallContacts;
     if (requestedCodexRelay) {
-      state.settings.codexRelay = requestedCodexRelay;
+      state.settings.codexRelay = updateCodexRelayRoute(state.settings.codexRelay, requestedCodexRelay);
       addReceipt({ action: 'codex-relay:settings', capability: 'conversation', risk: 'high', status: 'completed', detail: `Local Codex relay ${requestedCodexRelay.enabled ? 'enabled' : 'disabled'} for an explicitly selected HexiGrid Link and Codex thread.`, source: 'codex-relay' });
     }
     if (body.wakeWord && typeof body.wakeWord === 'object' && !Array.isArray(body.wakeWord)) {
@@ -7220,7 +7300,7 @@ async function route(req, res) {
     }
     if (priorModel !== state.settings.model) addActivity("model", `The default model changed to ${modelLabel(state.settings.model)}.`);
     await saveState();
-    if (requestedCodexRelay) abortCodexRelayAttempts();
+    if (requestedCodexRelay) abortCodexRelayAttempts(requestedCodexRelay.linkId);
     startCodexRelayDrain();
     return json(res, 200, { settings: publicSettings() });
   }
@@ -7258,11 +7338,6 @@ async function route(req, res) {
   return json(res, 404, { error: "Not found." });
 }
 
-async function processExists(pid) {
-  if (!Number.isSafeInteger(pid) || pid <= 0) return false;
-  try { process.kill(pid, 0); return true; } catch (error) { return error?.code === 'EPERM'; }
-}
-
 async function acquireInstanceLock() {
   await fs.mkdir(DATA_DIR, { recursive: true });
   const record = JSON.stringify({ product: 'hexigrid', version: APP_VERSION, instanceId: SERVER_INSTANCE_ID, pid: process.pid, createdAt: now() });
@@ -7272,7 +7347,7 @@ async function acquireInstanceLock() {
       if (error?.code !== 'EEXIST') throw error;
       let existing = null;
       try { existing = JSON.parse(await fs.readFile(INSTANCE_LOCK_FILE, 'utf8')); } catch { /* malformed lock is stale */ }
-      if (existing?.product === 'hexigrid' && await processExists(Number(existing.pid))) throw new Error(`Another HexiGrid process (${existing.pid}) is already using this private data folder.`);
+      if (await instanceLockOwnerAlive(existing)) throw new Error(`Another HexiGrid process (${existing.pid}) is already using this private data folder.`);
       await fs.rm(INSTANCE_LOCK_FILE, { force: true });
     }
   }
@@ -7293,7 +7368,7 @@ if (DEVELOPMENT_FRESH_START) {
 }
 await loadState();
 const incomingCallNotifier = createWindowsIncomingCallNotifier({
-  onAction: ({ action, callId }) => applyOwnerIncomingVoiceCallAction({ state, callId, action, acceptedVia: 'windows-toast', connectorPolicy, addReceipt, saveState, onVoiceCallStarted: voiceCall => voiceCallTranscripts.begin(voiceCall) }),
+  onAction: ({ action, callId }) => applyOwnerIncomingVoiceCallAction({ state, callId, action, acceptedVia: 'windows-toast', connectorPolicy, addReceipt, saveState, onVoiceCallStarted: callDeliveryStarted }),
   onError: (_error, { callId } = {}) => {
     if (callId) setVoiceCallNotificationChannel(callId, 'browser');
     addActivity('voice-call', 'A Windows call notification could not be used; the HexiGrid call prompt is available instead.');
@@ -7304,6 +7379,8 @@ try { await loadCodexDoorLocalSecret(); }
 catch { codexDoorLocalSecret = ''; console.warn('The local Codex Door handoff is unavailable because its OS-vault credential could not be loaded.'); }
 try { await loadCallBrowserLocalSecret(); }
 catch { callBrowserLocalSecret = ''; console.warn('The browser call connection is unavailable because its OS-vault credential could not be loaded.'); }
+try { await loadAndroidCallChat(); }
+catch { androidCallChat = undefined; console.warn('The Android call connection could not be loaded. Existing calls and other connectors remain available.'); }
 publicAgentRelay = new PublicAgentRelay({
   publicDir: PUBLIC_DIR,
   skillRoot: path.join(ROOT, 'integrations', 'hexigrid-link'),

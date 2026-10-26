@@ -11,6 +11,7 @@ import {
   revokeAgentLink, signatureFor, toggleOwnerAgentLinkCapabilities, updateAgentLinkCapabilities, waitForAgentLinkEvents
 } from '../lib/agent-link.mjs';
 import { AGENT_LINK_SKILL_VERSION, agentLinkSkillBundle } from '../lib/agent-link-skill-bundle.mjs';
+import { LocalTranscriber } from '../lib/local-transcription.mjs';
 
 const companionClientPath = fileURLToPath(new URL('../integrations/hexigrid-link/scripts/companion_client.mjs', import.meta.url));
 const directClientPath = fileURLToPath(new URL('../integrations/hexigrid-link/scripts/link_client.py', import.meta.url));
@@ -19,6 +20,31 @@ function signed(token, method, pathname, body = null, nonce = `nonce-${crypto.ra
   const timestamp = new Date().toISOString();
   return { method, pathname, body, timestamp, nonce, signature: signatureFor({ token, method, pathname, body, timestamp, nonce }) };
 }
+
+test('call transcripts reach a waiting agent across concurrent signed requests', async () => {
+  const state = {};
+  const invite = createAgentLinkInvite(state, { baseUrl: 'http://localhost:4318', requestedCapabilities: ['messages', 'microphone-listen'] });
+  const paired = acceptAgentLinkInvite(state, { inviteId: invite.invite.id, secret: decodeURIComponent(new URL(invite.invitationUrl).hash.slice('#secret='.length)), capabilities: ['messages', 'microphone-listen'] });
+  const captureConnection = state.agentLinks[0];
+  const transcriber = new LocalTranscriber({ finalDelayMs: 10 });
+  let finishRecognition;
+  const recognition = new Promise(resolve => { finishRecognition = resolve; });
+  transcriber.transcribe = () => recognition;
+  try {
+    transcriber.enqueue(captureConnection, { sequence: 1, mimeType: 'audio/webm', data: 'eA==', speechActive: true }, event => queueAgentLinkEvent(captureConnection, event), { activeCall: true });
+    await new Promise(resolve => setTimeout(resolve, 25));
+    const pollingConnection = authenticateAgentLink(state, `Bearer ${paired.token}`, signed(paired.token, 'POST', '/agent-link/v1/events/poll', { after: 0, waitMs: 100 }));
+    const pending = waitForAgentLinkEvents(pollingConnection, { after: 0, waitMs: 100 });
+    authenticateAgentLink(state, `Bearer ${paired.token}`, signed(paired.token, 'GET', '/agent-link/v1/orientation'));
+    finishRecognition('Synthetic owner speech');
+    await new Promise(resolve => setTimeout(resolve, 120));
+    const delivered = await pending;
+    assert.equal(delivered.events.find(event => event.type === 'speech.transcript.final')?.text, 'Synthetic owner speech');
+    assert.equal(readAgentLinkEvents(state.agentLinks[0], 0).at(-1)?.text, 'Synthetic owner speech');
+    revokeAgentLink(state.agentLinks[0]);
+    assert.throws(() => queueAgentLinkEvent(captureConnection, { text: 'Must not survive revocation' }), /disconnected/);
+  } finally { transcriber.clear(captureConnection.id); }
+});
 
 test('companion routed commands call the shared request helper without command-name shadowing', () => {
   const result = spawnSync(process.execPath, [companionClientPath, 'heartbeat'], { encoding: 'utf8', windowsHide: true });
@@ -95,6 +121,13 @@ test('the shipped Link skill bundle publishes friendship, linked-profile, and re
   const skill = bundle.files.find((file) => file.path === 'SKILL.md')?.content || '';
   const client = bundle.files.find((file) => file.path === 'scripts/companion_client.mjs')?.content || '';
   assert.equal(bundle.version, AGENT_LINK_SKILL_VERSION);
+  assert.equal(bundle.entrypoint, 'CONNECT.md');
+  const setup = bundle.files.find(file => file.path === bundle.entrypoint)?.content || '';
+  assert.ok(setup.length > 1000 && setup.length < 8000, 'routine connection instructions stay separate from the full command catalog');
+  assert.match(setup, /storage-check/);
+  assert.match(setup, /--ephemeral/);
+  assert.match(setup, /both the credential and routing record/);
+  assert.match(setup, /established voice and personality/);
   assert.match(skill, /identity-anchor markers/);
   assert.match(skill, /--query/);
   assert.match(client, /query: requireFlag\(flags, 'query'\)/);
@@ -166,7 +199,8 @@ test('owner capability updates are exact, deduplicated, and reject unknown grant
   const paired = acceptAgentLinkInvite(state, { inviteId: invite.invite.id, secret, capabilities: ['messages', 'desktop-view'] });
   const connection = state.agentLinks[0];
   assert.deepEqual(updateAgentLinkCapabilities(connection, ['messages', 'workspace-read', 'workspace-read']), {
-    previous: ['messages', 'desktop-view'], capabilities: ['messages', 'workspace-read'], added: ['workspace-read'], removed: ['desktop-view']
+    previous: ['messages', 'desktop-view'], capabilities: ['messages', 'workspace-read'], added: ['workspace-read'], removed: ['desktop-view'],
+    grantsAdded: ['workspace-read'], grantsRemoved: ['desktop-view'], selfManagementEnabled: false
   });
   assert.throws(() => updateAgentLinkCapabilities(connection, ['messages', 'full-access']), (error) => error.code === 'invalid_capabilities' && error.status === 400);
   assert.deepEqual(connection.capabilities, ['messages', 'workspace-read']);
@@ -199,6 +233,33 @@ test('signed agent link rejects replay and tampering', () => {
   assert.throws(() => authenticateAgentLink(state, `Bearer ${paired.token}`, request), /already used/);
   const tampered = signed(paired.token, 'POST', '/agent-link/v1/messages', { text: 'safe' }); tampered.body = { text: 'changed' };
   assert.throws(() => authenticateAgentLink(state, `Bearer ${paired.token}`, tampered), /signature is invalid/);
+});
+
+test('invitation self-management is opt-in, bounded and persists without owner machine trust', () => {
+  const state = {};
+  const invitation = createAgentLinkInvite(state, { baseUrl: 'https://example.test', requestedCapabilities: ['messages', 'camera-view'], selfManagementEnabled: true });
+  const secret = new URLSearchParams(new URL(invitation.invitationUrl).hash.slice(1)).get('secret');
+  const paired = acceptAgentLinkInvite(state, { inviteId: invitation.invite.id, secret, capabilities: ['messages', 'camera-view', 'owner-process'] });
+  assert.equal(invitation.invite.selfManagementEnabled, true);
+  assert.equal(paired.connection.trustLevel, 'scoped');
+  assert.deepEqual(paired.connection.selfManageableCapabilities, ['messages', 'camera-view']);
+  let link = state.agentLinks[0];
+  toggleOwnerAgentLinkCapabilities(link, ['messages']);
+  normalizeAgentLinks(state); link = state.agentLinks[0];
+  assert.deepEqual(publicAgentLink(link).grantedCapabilities, ['messages', 'camera-view']);
+  assert.deepEqual(toggleOwnerAgentLinkCapabilities(link, ['messages', 'camera-view']).added, ['camera-view']);
+  assert.throws(() => toggleOwnerAgentLinkCapabilities(link, ['messages', 'camera-view', 'owner-process']), /owner-process/);
+  updateAgentLinkCapabilities(link, ['messages', 'camera-view'], { selfManagementEnabled: false });
+  normalizeAgentLinks(state); link = state.agentLinks[0];
+  assert.deepEqual(publicAgentLink(link).selfManageableCapabilities, []);
+  assert.throws(() => toggleOwnerAgentLinkCapabilities(link, ['messages']), /not enabled/);
+  const before = structuredClone(link);
+  assert.throws(() => updateAgentLinkCapabilities(link, ['messages'], { selfManagementEnabled: 'yes' }));
+  assert.deepEqual(link, before, 'invalid policy cannot partially mutate grants');
+  updateAgentLinkCapabilities(link, [], { selfManagementEnabled: true });
+  normalizeAgentLinks(state);
+  assert.deepEqual(publicAgentLink(state.agentLinks[0]).grantedCapabilities, []);
+  assert.throws(() => toggleOwnerAgentLinkCapabilities(state.agentLinks[0], ['camera-view']), /camera-view/);
 });
 
 test('agent-link invitations expire before pairing and cannot be replayed', () => {

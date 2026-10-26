@@ -1467,7 +1467,11 @@
     return { refresh };
   }
 
-  window.HexiGridViewRenderers = { renderOverview, renderUsage, renderModels, renderSetup, renderAccess, renderActivity, renderSettings, renderNetwork, agentCatalogEntries, agentWorkRecords, taskHistoryHtml, agentUsageReport, createMemoryReview, createMemoryRecall, memoryRiskReasonLabel, linkPresence, orderAgents, agentSelectionStanding };
+  function currentAgentLinks(state) {
+    const agents = new Set((state.agents || []).map(agent => agent.id));
+    return (state.agentLinks || []).filter(link => agents.has(link.agentId) && (link.authorizationStatus || link.status) === 'connected');
+  }
+  window.HexiGridViewRenderers = { renderOverview, renderUsage, renderModels, renderSetup, renderAccess, renderActivity, renderSettings, renderNetwork, agentCatalogEntries, agentWorkRecords, taskHistoryHtml, agentUsageReport, createMemoryReview, createMemoryRecall, memoryRiskReasonLabel, linkPresence, orderAgents, agentSelectionStanding, currentAgentLinks };
 })();
 
 (() => {

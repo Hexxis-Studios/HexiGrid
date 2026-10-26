@@ -43,6 +43,8 @@ if (-not (Test-Path -LiteralPath (Join-Path $engine 'whisper-cli.exe') -PathType
 Get-VerifiedDownload -Uri $modelUrl -Destination $modelFile -Sha256 $modelSha256
 
 $ffmpeg = @(
+  $env:HEXIGRID_FFMPEG,
+  (Join-Path $engine 'ffmpeg.exe'),
   (Get-Command ffmpeg.exe -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source),
   'C:\ffmpeg\ffmpeg-7.1.1-full_build\bin\ffmpeg.exe'
 ) | Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } | Select-Object -First 1

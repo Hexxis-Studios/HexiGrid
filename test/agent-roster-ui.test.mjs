@@ -7,6 +7,40 @@ const source = await fs.readFile(new URL('../public/agent-ui.js', import.meta.ur
 const rendererSource = await fs.readFile(new URL('../public/view-renderers.js', import.meta.url), 'utf8');
 const helpers = source.slice(source.indexOf('function usesPairedAgentModel('), source.indexOf('function renderAgentCard(')) + source.slice(source.indexOf('function agentRosterAccountLabel('), source.indexOf('function renderAgents()'));
 
+test('paired choices exclude removed profiles and revoked links while keeping same-name agents separate', () => {
+  const context = { window: {} };
+  vm.runInNewContext(rendererSource, context);
+  const result = context.window.HexiGridViewRenderers.currentAgentLinks({
+    agents: [{ id: 'muse' }, { id: 'ilands' }, { id: 'codex-local' }],
+    agentLinks: [
+      { id: 'muse-link', agentId: 'muse', authorizationStatus: 'connected', status: 'offline', identity: { name: 'Same name' } },
+      { id: 'ilands-link', agentId: 'ilands', authorizationStatus: 'connected', status: 'offline', identity: { name: 'Same name' } },
+      { id: 'deleted-test', agentId: 'removed', authorizationStatus: 'connected', status: 'online' },
+      { id: 'revoked', agentId: 'muse', authorizationStatus: 'revoked', status: 'revoked' }
+    ]
+  });
+  assert.deepEqual(Array.from(result, link => link.id), ['muse-link', 'ilands-link']);
+});
+
+test('startup retires orphan credentials once without altering retained agents or their grants', async () => {
+  const server = await fs.readFile(new URL('../server.mjs', import.meta.url), 'utf8');
+  const migration = server.slice(server.indexOf('  let revokedOrphanLinks = false;'), server.indexOf('  if (needsLegacyMediaGrantMigration)'));
+  const keep = { id: 'keep', agentId: 'present', status: 'connected', capabilities: ['camera-view'], tokenHash: 'unchanged' };
+  const orphan = { id: 'orphan', agentId: 'removed', status: 'connected', capabilities: ['desktop-control'] };
+  const receipts = [];
+  const context = { state: { agents: [{ id: 'present' }], agentLinks: [keep, orphan], settings: { desktopBridge: { linkId: 'orphan', enabled: true } } },
+    revokeAgentLink: link => { link.status = 'revoked'; }, stopDesktopBridge: () => ({ enabled: false }), addReceipt: item => receipts.push(item) };
+  vm.runInNewContext(`${migration}\nthis.changed = revokedOrphanLinks;`, context);
+  assert.equal(context.changed, true);
+  assert.equal(orphan.status, 'revoked');
+  assert.deepEqual(keep, { id: 'keep', agentId: 'present', status: 'connected', capabilities: ['camera-view'], tokenHash: 'unchanged' });
+  assert.equal(context.state.settings.desktopBridge.enabled, false);
+  assert.equal(receipts.length, 1);
+  vm.runInNewContext(`{${migration}\nthis.changed = revokedOrphanLinks;}`, context);
+  assert.equal(context.changed, false);
+  assert.equal(receipts.length, 1);
+});
+
 test('agent interface roster uses live Link standing rather than stale profile connected status', async () => {
   const script = await fs.readFile(new URL('../public/agent-interface.js', import.meta.url), 'utf8');
   const helper = script.slice(script.indexOf('  function rosterStanding('), script.indexOf('  const interfaceRoot'));

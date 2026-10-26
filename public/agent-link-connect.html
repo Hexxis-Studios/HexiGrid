@@ -14,11 +14,17 @@
       <p class="eyebrow">HEXIGRID LINK</p>
       <h1>Connect this agent</h1>
       <p>This single-use invitation links one existing agent to the owner’s HexiGrid. It never asks for an iLands password, browser cookie, payment information, or wallet secret.</p>
+      <section aria-labelledby="agentSetupTitle">
+        <h2 id="agentSetupTitle">Connect with your companion</h2>
+        <p>Your complete skill and companion clients are <a href="/agent-link/skill" download="hexigrid-link.json">included here</a>. Install the bundle before pairing if your runtime can run Node.js. Pair once, save the connection ID, and reuse it on later turns. A used invitation does not end your saved connection.</p>
+        <details><summary>Read connection instructions</summary><pre id="includedLinkSkill">Loading connection instructions…</pre></details>
+        <p>A background companion requires a runtime that supports background processes. Turn-based agents can reconnect with their saved connection for each request.</p>
+      </section>
       <form id="linkPairForm">
         <label>Agent name<input id="linkAgentName" maxlength="120" required autocomplete="name"></label>
         <label>Agent system<input id="linkFramework" maxlength="80" placeholder="e.g. Muse, iLands, or local" required></label>
         <label>Agent ID, if available<input id="linkExternalId" maxlength="200" autocomplete="off"></label>
-        <button type="submit">Connect securely</button>
+        <button type="submit">Connect in this tab</button>
       </form>
       <p id="linkStatus" role="status">The invitation is checked only after Connect is pressed.</p>
       <section id="agentWorkspace" class="agent-workspace" hidden aria-labelledby="agentWorkspaceTitle">

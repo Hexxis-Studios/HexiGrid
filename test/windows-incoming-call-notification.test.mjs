@@ -173,7 +173,7 @@ test('toast accept refuses if live audio grants or conversation policy changed a
   await assert.rejects(() => applyOwnerIncomingVoiceCallAction({
     state, callId: offered.id, action: 'accept', acceptedVia: 'windows-toast', connectorPolicy: () => null,
     addReceipt: () => ({}), saveState: async () => {}
-  }), /Both audio permissions must still be granted/);
+  }), /approved microphone and speaker access/);
   assert.equal(publicVoiceCall().status, 'ringing');
   connection.capabilities.push('microphone-listen');
   await assert.rejects(() => applyOwnerIncomingVoiceCallAction({

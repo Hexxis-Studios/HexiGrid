@@ -19,7 +19,7 @@ test('new agent form defaults to a provider-neutral local profile', async () => 
   vm.runInContext('renderAgentPhoto = () => {}', context);
   context.openAgentModal();
   assert.equal($('#transport').value, 'local-opencode');
-  assert.equal($('#agentConnectionSummary').textContent, 'Independent local profile');
+  assert.equal($('#agentConnectionSummary').textContent, 'Agent created in HexiGrid');
   assert.equal($('#agentLearnFromConversations').checked, true);
 });
 
@@ -122,7 +122,7 @@ test('Pair an existing agent opens and focuses the existing invitation form', as
   const renderers = await readFile(new URL('../public/view-renderers.js', import.meta.url), 'utf8');
   assert.match(renderers, /bridge\.runnerInstalled \? "iLands connection ready" : "iLands connection optional"/);
   const integrations = await readFile(new URL('../public/integrations.js', import.meta.url), 'utf8');
-  assert.match(integrations, /<form id="desktopInviteForm"/);
+  assert.match(integrations, /<form id="desktopBridgeForm"/);
   const app = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
   const start = app.indexOf('function openAgentLinkInvite() {');
   const end = app.indexOf('\n}', start);
@@ -132,7 +132,7 @@ test('Pair an existing agent opens and focuses the existing invitation form', as
     closeConnectModal: () => events.push('close'),
     showView: view => events.push(`view:${view}`),
     setTimeout: (callback, delay) => { assert.equal(delay, 0); callback(); },
-    document: { querySelector(selector) { assert.equal(selector, '#desktopInviteForm'); return { scrollIntoView(options) { events.push(`scroll:${options.block}`); } }; } }
+    window: { HexiGridOpenAgentInvitation() { events.push('scroll:start'); } }
   });
   vm.runInContext(app.slice(start, end + 2), context);
   context.openAgentLinkInvite();
